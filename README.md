@@ -151,6 +151,10 @@ Frontend BFF:
 
 Backend (see [backend/app/core/config.py](backend/app/core/config.py)):
 
+- Copy example env and edit locally:
+  - `cp backend/.env.example backend/.env`
+  - `cp frontend/.env.local.example frontend/.env.local`
+
 - `POSTGRES_DSN`
 - `REDIS_URL`
 - `RABBITMQ_URL`
