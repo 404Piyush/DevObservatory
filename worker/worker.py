@@ -1,7 +1,10 @@
 import asyncio
 import json
+import os
+import threading
 import uuid
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import aio_pika
 from pydantic import BaseModel, Field
@@ -46,6 +49,34 @@ events_table = Table(
 engine = create_engine(settings.postgres_dsn, pool_pre_ping=True)
 
 
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path not in ("/", "/healthz"):
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok"}')
+
+    def log_message(self, format: str, *args) -> None:
+        return
+
+
+def _start_health_server_if_needed() -> None:
+    port_str = os.getenv("PORT")
+    if not port_str:
+        return
+    try:
+        port = int(port_str)
+    except ValueError:
+        return
+    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+
 async def handle_message(message: aio_pika.IncomingMessage) -> None:
     async with message.process(requeue=True):
         payload = json.loads(message.body.decode("utf-8"))
@@ -64,6 +95,8 @@ async def handle_message(message: aio_pika.IncomingMessage) -> None:
 
 
 async def main() -> None:
+    _start_health_server_if_needed()
+
     connection: aio_pika.RobustConnection | None = None
     for attempt in range(60):
         try:

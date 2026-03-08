@@ -6,11 +6,13 @@ services:
     plan: free
     region: oregon
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -U pip && pip install -r requirements.txt
     # Chaining migrations + server for Free Tier
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: export PYTHONPATH="$PWD" && alembic -c alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.2"
       - key: POSTGRES_DSN
         fromDatabase:
           name: devobservatory-db
@@ -34,9 +36,12 @@ services:
     plan: free
     region: oregon
     rootDir: worker
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -U pip && pip install -r requirements.txt
     startCommand: python worker.py
+    healthCheckPath: /healthz
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.2"
       - key: POSTGRES_DSN
         fromDatabase:
           name: devobservatory-db
