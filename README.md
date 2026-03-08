@@ -168,7 +168,3 @@ Frontend:
 - Signup returns 500: check backend logs; password hashing relies on `passlib` + `bcrypt`.
 - Hydration mismatch warnings: browser extensions can inject attributes into the DOM before React hydrates.
 - Queue unavailable: RabbitMQ might not be ready yet; restart the worker or wait a few seconds.
-
-## License
-
-Add a license file before publishing if you plan to open-source this.
