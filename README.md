@@ -159,7 +159,7 @@ Backend (see [backend/app/core/config.py](backend/app/core/config.py)):
 - `REDIS_URL`
 - `RABBITMQ_URL`
 - `JWT_SECRET_KEY`
-- `CORS_ALLOW_ORIGINS` (JSON string)
+- `CORS_ALLOWED_ORIGINS` (JSON string or comma-separated)
 - `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`
 
 Frontend:

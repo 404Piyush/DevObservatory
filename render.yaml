@@ -1,0 +1,83 @@
+services:
+  - type: web
+    name: devobservatory-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic -c alembic.ini upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: POSTGRES_DSN
+        fromDatabase:
+          name: devobservatory-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: devobservatory-redis
+          type: keyvalue
+          property: connectionString
+      - key: RABBITMQ_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+
+  - type: worker
+    name: devobservatory-worker
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: worker
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
+    envVars:
+      - key: POSTGRES_DSN
+        fromDatabase:
+          name: devobservatory-db
+          property: connectionString
+      - key: RABBITMQ_URL
+        sync: false
+
+  - type: pserv
+    name: devobservatory-rabbitmq
+    runtime: image
+    plan: starter
+    region: oregon
+    image:
+      url: docker.io/rabbitmq:3-management
+    envVars:
+      - key: RABBITMQ_ERLANG_COOKIE
+        generateValue: true
+      - key: RABBITMQ_DEFAULT_USER
+        value: devobservatory
+      - key: RABBITMQ_DEFAULT_PASS
+        sync: false
+    disk:
+      name: rabbitmq-data
+      mountPath: /var/lib/rabbitmq
+      sizeGB: 1
+
+  - type: keyvalue
+    name: devobservatory-redis
+    plan: free
+    region: oregon
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+
+databases:
+  - name: devobservatory-db
+    plan: free
+    region: oregon
