@@ -5,9 +5,10 @@ import threading
 import uuid
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import aio_pika
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import BigInteger, Column, DateTime, MetaData, String, Table, create_engine
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -15,10 +16,34 @@ from sqlalchemy.sql import insert
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore", enable_decoding=False)
 
-    postgres_dsn: str = "postgresql+psycopg://devobservatory:devobservatory@localhost:5432/devobservatory"
+    postgres_dsn: str = Field(
+        default="postgresql+psycopg://devobservatory:devobservatory@localhost:5432/devobservatory",
+        validation_alias=AliasChoices("POSTGRES_DSN", "DATABASE_URL", "postgres_dsn"),
+    )
     rabbitmq_url: str = "amqp://devobservatory:devobservatory@localhost:5672/"
+
+    @field_validator("postgres_dsn", mode="before")
+    @classmethod
+    def _normalize_postgres_dsn(cls, v: object) -> str:
+        if v is None:
+            return v
+        dsn = str(v).strip()
+        if dsn.startswith("postgres://"):
+            dsn = "postgresql://" + dsn[len("postgres://") :]
+
+        if dsn.startswith("postgresql://") and not dsn.startswith("postgresql+"):
+            dsn = "postgresql+psycopg://" + dsn[len("postgresql://") :]
+
+        parsed = urlparse(dsn)
+        host = (parsed.hostname or "").lower()
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        if host.endswith(".neon.tech") and "sslmode" not in query:
+            query["sslmode"] = "require"
+            dsn = urlunparse(parsed._replace(query=urlencode(query)))
+
+        return dsn
 
 
 settings = Settings()
