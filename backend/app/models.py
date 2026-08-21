@@ -89,6 +89,7 @@ class Project(Base):
     organization: Mapped[Organization] = relationship(back_populates="projects")
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     events: Mapped[list["Event"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    funnels: Mapped[list["Funnel"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_projects_org_name"),)
 
@@ -139,3 +140,30 @@ class Event(Base):
 
 
 Index("ix_events_project_received_at", Event.project_id, Event.received_at.desc())
+
+
+class Funnel(Base):
+    """A user-defined conversion funnel: an ordered list of event names."""
+
+    __tablename__ = "funnels"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    steps: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="funnels")
+
+
+class ShareToken(Base):
+    """Tokenized read-only URL for a project's dashboard."""
+
+    __tablename__ = "share_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

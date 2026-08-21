@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Eye, EyeOff } from "lucide-react";
+import { Copy, Eye, EyeOff, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   useCreateApiKey,
   useCreateOrg,
   useCreateProject,
+  useCreateShareToken,
   useOrgs,
   useProjects,
   useRevokeApiKey,
@@ -44,13 +45,15 @@ export default function ProjectsPage() {
     const createProject = useCreateProject(orgId);
     const createApiKey = useCreateApiKey(projectId);
     const revokeApiKey = useRevokeApiKey(projectId);
+    const createShareToken = useCreateShareToken(projectId);
 
   const [orgName, setOrgName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [apiKeyName, setApiKeyName] = useState("");
 
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
-  const [revealedKey, setRevealedKey] = useState(false);
+    const [revealedKey, setRevealedKey] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   // Auto-select first org/project if missing
   useEffect(() => {
@@ -273,6 +276,64 @@ export default function ProjectsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Share</CardTitle>
+          <CardDescription>
+            Mint a public, read-only URL for this project's dashboard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="outline"
+            disabled={!projectId || createShareToken.isPending}
+            onClick={async () => {
+              try {
+                const out = await createShareToken.mutateAsync();
+                const url = `${window.location.origin}/share/${out.token}`;
+                setShareUrl(url);
+                toast.success("Share link created (30 days)");
+              } catch (err) {
+                handleApiError(err, "Could not create share link");
+              }
+            }}
+          >
+            <Share2 className="mr-2 h-4 w-4" />
+            Create share link
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!shareUrl} onOpenChange={(open) => !open && setShareUrl(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share link</DialogTitle>
+            <DialogDescription>
+              Anyone with this link can view a read-only dashboard for this project for the next
+              30 days.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2">
+            <code className="grow overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+              {shareUrl}
+            </code>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => shareUrl && copyToClipboard(shareUrl, "Share link")}
+              aria-label="Copy share link"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareUrl(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!createdKey}

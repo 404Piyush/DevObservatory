@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api-client";
-import { useEvents, useMetrics, useOrgs } from "@/lib/queries";
+import { useMetrics, useOrgs, useSeedDemo } from "@/lib/queries";
+import { useSelectorStore } from "@/components/app/selector-store";
 
 function formatNumber(n: number) {
   return n.toLocaleString();
@@ -14,6 +16,9 @@ function formatNumber(n: number) {
 export default function DashboardPage() {
   const metrics = useMetrics();
   const orgs = useOrgs();
+  const seedDemo = useSeedDemo();
+  const setOrg = useSelectorStore((s) => s.setOrg);
+  const setProject = useSelectorStore((s) => s.setProject);
 
   useEffect(() => {
     if (metrics.error) {
@@ -22,8 +27,39 @@ export default function DashboardPage() {
     }
   }, [metrics.error]);
 
+  async function onSeedDemo() {
+    try {
+      const out = await seedDemo.mutateAsync();
+      setOrg(out.org_id);
+      setProject(out.project_id);
+      toast.success(
+        out.api_key
+          ? "Demo created — see Projects for your new API key"
+          : "Demo refreshed (org + project already existed)",
+      );
+    } catch (err) {
+      const detail = err instanceof ApiError ? err.detail : "Could not seed demo";
+      toast.error(detail);
+    }
+  }
+
   return (
     <div className="grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Try it out</CardTitle>
+          <CardDescription>
+            Seed a demo org + project + 30 days of synthetic events in one click. Great for
+            exploring the dashboards without sending real events.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={onSeedDemo} disabled={seedDemo.isPending}>
+            {seedDemo.isPending ? "Seeding…" : "Seed demo data"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>

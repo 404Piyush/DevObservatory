@@ -139,3 +139,28 @@ class TopEvent(BaseModel):
 class AnalyticsResponse(BaseModel):
     timeseries: list[TimeBucket]
     top_events: list[TopEvent]
+
+
+class FunnelCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    steps: list[str] = Field(min_length=2, max_length=10)
+
+
+class FunnelOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    steps: list[str]
+    created_at: datetime
+
+
+class FunnelStepResult(BaseModel):
+    event_name: str
+    reached: int
+    conversion_rate: float  # 0..1, ratio of users that hit this step vs the previous
+
+
+class FunnelResult(BaseModel):
+    funnel_id: uuid.UUID
+    window_hours: int
+    steps: list[FunnelStepResult]

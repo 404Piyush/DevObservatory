@@ -5,11 +5,12 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isAuthRoute = pathname === "/login" || pathname === "/signup";
-  const isProtected =
-    pathname === "/dashboard" ||
-    pathname === "/projects" ||
-    pathname === "/events" ||
-    pathname === "/settings";
+    const isProtected =
+      pathname === "/dashboard" ||
+      pathname === "/projects" ||
+      pathname === "/events" ||
+      pathname === "/funnels" ||
+      pathname === "/settings";
 
   if (access && isAuthRoute) {
     const url = req.nextUrl.clone();
@@ -27,5 +28,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/signup", "/dashboard", "/projects", "/events", "/settings"],
+  matcher: ["/login", "/signup", "/dashboard", "/projects", "/events", "/funnels", "/settings"],
 };

@@ -33,6 +33,26 @@ export type TimeBucket = { bucket: string; count: number };
 export type TopEvent = { event_name: string; count: number };
 export type Analytics = { timeseries: TimeBucket[]; top_events: TopEvent[] };
 
+export type ShareToken = { token: string; expires_at: string };
+
+export type Funnel = {
+  id: string;
+  project_id: string;
+  name: string;
+  steps: string[];
+  created_at: string;
+};
+export type FunnelStepResult = {
+  event_name: string;
+  reached: number;
+  conversion_rate: number;
+};
+export type FunnelResult = {
+  funnel_id: string;
+  window_hours: number;
+  steps: FunnelStepResult[];
+};
+
 export const queryKeys = {
   me: ["auth", "me"] as const,
   orgs: ["orgs"] as const,
@@ -41,6 +61,9 @@ export const queryKeys = {
     ["projects", projectId, "api-keys"] as const,
   events: (projectId: string | null) => ["projects", projectId, "events"] as const,
   analytics: (projectId: string | null) => ["projects", projectId, "analytics"] as const,
+  funnels: (projectId: string | null) => ["projects", projectId, "funnels"] as const,
+  funnelResult: (projectId: string | null, funnelId: string | null, hours: number) =>
+    ["projects", projectId, "funnels", funnelId, "result", hours] as const,
   metrics: ["metrics", "overview"] as const,
 };
 
@@ -116,6 +139,63 @@ export function useAnalytics(projectId: string | null) {
     queryFn: () => api.get<Analytics>(`/api/projects/${projectId}/analytics`),
     enabled: !!projectId,
     refetchInterval: 30_000,
+  });
+}
+
+export function useFunnels(projectId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.funnels(projectId),
+    queryFn: () => api.get<Funnel[]>(`/api/projects/${projectId}/funnels`),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateFunnel(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; steps: string[] }) =>
+      api.post<Funnel>(`/api/projects/${projectId}/funnels`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.funnels(projectId) }),
+  });
+}
+
+export function useDeleteFunnel(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (funnelId: string) =>
+      api.delete<void>(`/api/projects/${projectId}/funnels/${funnelId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.funnels(projectId) }),
+  });
+}
+
+export function useFunnelResult(
+  projectId: string | null,
+  funnelId: string | null,
+  windowHours: number = 24,
+) {
+  return useQuery({
+    queryKey: queryKeys.funnelResult(projectId, funnelId, windowHours),
+    queryFn: () =>
+      api.get<FunnelResult>(
+        `/api/projects/${projectId}/funnels/${funnelId}/result?window_hours=${windowHours}`,
+      ),
+    enabled: !!projectId && !!funnelId,
+  });
+}
+
+export function useCreateShareToken(projectId: string | null) {
+  return useMutation({
+    mutationFn: () => api.post<ShareToken>(`/api/projects/${projectId}/share-tokens`, {}),
+  });
+}
+
+export function useSeedDemo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ org_id: string; project_id: string; api_key: string | null }>("/api/demo/seed", {}),
+    onSuccess: () => {
+      qc.invalidateQueries();
+    },
   });
 }
 
