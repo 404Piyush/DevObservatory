@@ -120,6 +120,12 @@ class EventOut(BaseModel):
     received_at: datetime
 
 
+class EventSearchResult(BaseModel):
+    events: list[EventOut]
+    has_more: bool
+    next_cursor: str | None
+
+
 class MetricsOverview(BaseModel):
     total_events: int
     events_per_minute: float

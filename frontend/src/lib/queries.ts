@@ -53,6 +53,21 @@ export type FunnelResult = {
   steps: FunnelStepResult[];
 };
 
+export type EventFilters = {
+  event_name?: string;
+  user_id?: string;
+  from?: string; // ISO datetime
+  to?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type EventSearchResult = {
+  events: EventRecord[];
+  has_more: boolean;
+  next_cursor: string | null;
+};
+
 export const queryKeys = {
   me: ["auth", "me"] as const,
   orgs: ["orgs"] as const,
@@ -60,6 +75,8 @@ export const queryKeys = {
   apiKeys: (projectId: string | null) =>
     ["projects", projectId, "api-keys"] as const,
   events: (projectId: string | null) => ["projects", projectId, "events"] as const,
+  eventSearch: (projectId: string | null, filters: EventFilters) =>
+    ["projects", projectId, "events", "search", filters] as const,
   analytics: (projectId: string | null) => ["projects", projectId, "analytics"] as const,
   funnels: (projectId: string | null) => ["projects", projectId, "funnels"] as const,
   funnelResult: (projectId: string | null, funnelId: string | null, hours: number) =>
@@ -129,6 +146,29 @@ export function useEvents(projectId: string | null) {
   return useQuery({
     queryKey: queryKeys.events(projectId),
     queryFn: () => api.get<EventRecord[]>(`/api/projects/${projectId}/events`),
+    enabled: !!projectId,
+  });
+}
+
+function buildSearchQuery(filters: EventFilters): string {
+  const params = new URLSearchParams();
+  if (filters.event_name) params.set("event_name", filters.event_name);
+  if (filters.user_id) params.set("user_id", filters.user_id);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.cursor) params.set("cursor", filters.cursor);
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
+export function useEventSearch(projectId: string | null, filters: EventFilters) {
+  return useQuery({
+    queryKey: queryKeys.eventSearch(projectId, filters),
+    queryFn: () =>
+      api.get<EventSearchResult>(
+        `/api/projects/${projectId}/events/search${buildSearchQuery(filters)}`,
+      ),
     enabled: !!projectId,
   });
 }
