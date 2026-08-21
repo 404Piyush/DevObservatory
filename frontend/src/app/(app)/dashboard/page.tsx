@@ -3,8 +3,11 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 
+import { Building2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/app/empty-state";
 import { ApiError } from "@/lib/api-client";
 import { useMetrics, useOrgs, useSeedDemo } from "@/lib/queries";
 import { useSelectorStore } from "@/components/app/selector-store";
@@ -95,19 +98,27 @@ export default function DashboardPage() {
           {orgs.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : orgs.data && orgs.data.length > 0 ? (
-            <ul className="grid gap-2">
-              {orgs.data.map((o) => (
-                <li key={o.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div className="font-medium">{o.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(o.created_at).toLocaleString()}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="text-sm text-muted-foreground">Create an organization in Projects.</div>
-          )}
+                      <ul className="grid gap-2">
+                        {orgs.data.map((o) => (
+                          <li key={o.id} className="flex items-center justify-between rounded-md border p-3">
+                            <div className="font-medium">{o.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(o.created_at).toLocaleString()}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <EmptyState
+                        icon={<Building2 className="h-8 w-8" />}
+                        title="No organizations yet"
+                        description="Create an organization to start grouping projects and ingesting events."
+                        actions={[
+                          { label: "Go to Projects", href: "/projects", variant: "outline" },
+                          { label: "Seed demo data", onClick: onSeedDemo },
+                        ]}
+                      />
+                    )}
         </CardContent>
       </Card>
     </div>

@@ -30,7 +30,10 @@ import {
 } from "@/lib/queries";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useSelectorStore } from "@/components/app/selector-store";
+import { Activity } from "lucide-react";
+
 import { JsonViewer } from "@/components/app/json-viewer";
+import { EmptyState } from "@/components/app/empty-state";
 
 const TIME_PRESETS: { value: string; label: string; hours: number }[] = [
   { value: "all", label: "All time", hours: 0 },
@@ -298,15 +301,39 @@ export default function EventsPage() {
         </CardHeader>
         <CardContent>
           {!projectId ? (
-            <div className="text-sm text-muted-foreground">Pick a project to see its events.</div>
-          ) : search.isLoading ? (
+                      <EmptyState
+                        icon={<Activity className="h-8 w-8" />}
+                        title="Pick a project to see its events"
+                        description="Choose an organization and project above."
+                      />
+                    ) : search.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading events…</div>
           ) : allEvents.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No events match your filters. Send one with{" "}
-              <code className="font-mono text-xs">POST /api/events</code>.
-            </div>
-          ) : (
+                      <EmptyState
+                        icon={<Activity className="h-8 w-8" />}
+                        title={
+                          appliedFilters.event_name || appliedFilters.user_id || appliedFilters.from
+                            ? "No events match these filters"
+                            : "No events yet for this project"
+                        }
+                        description={
+                          appliedFilters.event_name || appliedFilters.user_id || appliedFilters.from ? (
+                            "Try widening your filters or clearing them."
+                          ) : (
+                            <>
+                              Mint an API key on the{" "}
+                              <a href="/projects" className="underline">
+                                Projects
+                              </a>{" "}
+                              page, then send one with <code className="font-mono text-xs">POST /api/events</code>.
+                            </>
+                          )
+                        }
+                        actions={[
+                          { label: "Go to Projects", href: "/projects", variant: "outline" },
+                        ]}
+                      />
+                    ) : (
             <>
               <ul className="grid gap-2">
                 {allEvents.map((e) => (
