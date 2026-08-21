@@ -29,6 +29,10 @@ export type Metrics = {
 };
 export type Me = { id: string; email: string; name: string | null; created_at: string };
 
+export type TimeBucket = { bucket: string; count: number };
+export type TopEvent = { event_name: string; count: number };
+export type Analytics = { timeseries: TimeBucket[]; top_events: TopEvent[] };
+
 export const queryKeys = {
   me: ["auth", "me"] as const,
   orgs: ["orgs"] as const,
@@ -36,6 +40,7 @@ export const queryKeys = {
   apiKeys: (projectId: string | null) =>
     ["projects", projectId, "api-keys"] as const,
   events: (projectId: string | null) => ["projects", projectId, "events"] as const,
+  analytics: (projectId: string | null) => ["projects", projectId, "analytics"] as const,
   metrics: ["metrics", "overview"] as const,
 };
 
@@ -102,6 +107,15 @@ export function useEvents(projectId: string | null) {
     queryKey: queryKeys.events(projectId),
     queryFn: () => api.get<EventRecord[]>(`/api/projects/${projectId}/events`),
     enabled: !!projectId,
+  });
+}
+
+export function useAnalytics(projectId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.analytics(projectId),
+    queryFn: () => api.get<Analytics>(`/api/projects/${projectId}/analytics`),
+    enabled: !!projectId,
+    refetchInterval: 30_000,
   });
 }
 

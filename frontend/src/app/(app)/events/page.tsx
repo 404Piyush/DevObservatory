@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -8,8 +19,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ApiError } from "@/lib/api-client";
-import { useEvents, useOrgs, useProjects } from "@/lib/queries";
+import { useAnalytics, useEvents, useOrgs, useProjects } from "@/lib/queries";
+import { useEventStream } from "@/lib/use-event-stream";
 import { useSelectorStore } from "@/components/app/selector-store";
+
+function formatBucket(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
 export default function EventsPage() {
   const orgId = useSelectorStore((s) => s.orgId);
@@ -20,15 +37,12 @@ export default function EventsPage() {
   const orgs = useOrgs();
   const projects = useProjects(orgId);
   const events = useEvents(projectId);
+  const analytics = useAnalytics(projectId);
+  const { liveEvents, connected } = useEventStream(projectId);
 
-  // Auto-select first org if none picked yet
   useEffect(() => {
-    if (!orgId && orgs.data && orgs.data.length > 0) {
-      setOrg(orgs.data[0].id);
-    }
+    if (!orgId && orgs.data && orgs.data.length > 0) setOrg(orgs.data[0].id);
   }, [orgId, orgs.data, setOrg]);
-
-  // Auto-select first project under the chosen org
   useEffect(() => {
     if (projects.data && projects.data.length > 0) {
       const exists = projects.data.some((p) => p.id === projectId);
@@ -44,6 +58,11 @@ export default function EventsPage() {
       toast.error(detail);
     }
   }, [events.error]);
+
+  // Live event-list = live stream + initial polled list (live first so newest is on top)
+  const allEvents = projectId
+    ? [...liveEvents, ...(events.data ?? []).filter((e) => !liveEvents.some((l) => l.id === e.id))]
+    : [];
 
   return (
     <div className="grid gap-6">
@@ -90,25 +109,78 @@ export default function EventsPage() {
         </CardContent>
       </Card>
 
+      {projectId ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Events / minute (last 24h)</CardTitle>
+            </CardHeader>
+            <CardContent className="h-64">
+              {analytics.isLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : !analytics.data || analytics.data.timeseries.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No events in the last 24 hours.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={analytics.data.timeseries}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="bucket" tickFormatter={formatBucket} minTickGap={32} />
+                    <YAxis allowDecimals={false} />
+                    <RechartsTooltip labelFormatter={(v) => new Date(v as string).toLocaleString()} />
+                    <Line type="monotone" dataKey="count" stroke="#6366f1" dot={false} strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top events (last 24h)</CardTitle>
+            </CardHeader>
+            <CardContent className="h-64">
+              {analytics.isLoading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : !analytics.data || analytics.data.top_events.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No events in the last 24 hours.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analytics.data.top_events} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="event_name" width={120} />
+                    <RechartsTooltip />
+                    <Bar dataKey="count" fill="#6366f1" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent events</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => events.refetch()} disabled={!projectId || events.isFetching}>
+          <CardTitle>Recent events {connected ? <span className="ml-2 text-xs text-green-500">● live</span> : null}</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => events.refetch()}
+            disabled={!projectId || events.isFetching}
+          >
             {events.isFetching ? "Refreshing…" : "Refresh"}
           </Button>
         </CardHeader>
         <CardContent>
           {!projectId ? (
             <div className="text-sm text-muted-foreground">Pick a project to see its events.</div>
-          ) : events.isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading events…</div>
-          ) : !events.data || events.data.length === 0 ? (
+          ) : allEvents.length === 0 ? (
             <div className="text-sm text-muted-foreground">
               No events yet. Send one with <code className="font-mono text-xs">POST /api/events</code>.
             </div>
           ) : (
             <ul className="grid gap-2">
-              {events.data.map((e) => (
+              {allEvents.map((e) => (
                 <li key={e.id} className="rounded-md border p-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{e.event_name}</span>

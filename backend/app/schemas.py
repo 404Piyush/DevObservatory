@@ -124,3 +124,18 @@ class MetricsOverview(BaseModel):
     total_events: int
     events_per_minute: float
     active_projects: int
+
+
+class TimeBucket(BaseModel):
+    bucket: str  # ISO timestamp
+    count: int
+
+
+class TopEvent(BaseModel):
+    event_name: str
+    count: int
+
+
+class AnalyticsResponse(BaseModel):
+    timeseries: list[TimeBucket]
+    top_events: list[TopEvent]

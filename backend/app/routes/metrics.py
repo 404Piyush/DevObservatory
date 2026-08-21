@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
@@ -5,9 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import get_current_user
-from app.models import Event, Membership, Project, User
-from app.schemas import MetricsOverview
+from app.deps import get_current_user, require_project_role
+from app.models import Event, Membership, OrgRole, Project, User
+from app.schemas import AnalyticsResponse, MetricsOverview, TimeBucket, TopEvent
 
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -50,3 +51,42 @@ def overview(user: User = Depends(get_current_user), db: Session = Depends(get_d
         active_projects=int(active_projects),
     )
 
+
+@router.get("/projects/{project_id}/analytics", response_model=AnalyticsResponse)
+def project_analytics(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _membership: Membership = Depends(require_project_role(OrgRole.viewer)),
+) -> AnalyticsResponse:
+    """Time-series (per-minute buckets) + top events for a project (last 24h)."""
+    project = db.get(Project, project_id)
+    if not project:
+        return AnalyticsResponse(timeseries=[], top_events=[])
+
+    now = datetime.now(UTC)
+    since = now - timedelta(hours=24)
+
+    # Postgres date_trunc('minute', ...) for bucketing; works because we run on Postgres.
+    bucket_expr = func.date_trunc("minute", Event.received_at).label("bucket")
+
+    rows = db.execute(
+        select(bucket_expr, func.count().label("count"))
+        .where(Event.project_id == project_id, Event.received_at >= since)
+        .group_by(bucket_expr)
+        .order_by(bucket_expr)
+    ).all()
+
+    timeseries = [TimeBucket(bucket=r.bucket.isoformat(), count=int(r.count)) for r in rows]
+
+    top_rows = db.execute(
+        select(Event.event_name, func.count().label("count"))
+        .where(Event.project_id == project_id, Event.received_at >= since)
+        .group_by(Event.event_name)
+        .order_by(func.count().desc())
+        .limit(10)
+    ).all()
+
+    top_events = [TopEvent(event_name=r.event_name, count=int(r.count)) for r in top_rows]
+
+    return AnalyticsResponse(timeseries=timeseries, top_events=top_events)
