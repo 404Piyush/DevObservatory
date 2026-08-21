@@ -30,6 +30,7 @@ import {
 } from "@/lib/queries";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useSelectorStore } from "@/components/app/selector-store";
+import { JsonViewer } from "@/components/app/json-viewer";
 
 const TIME_PRESETS: { value: string; label: string; hours: number }[] = [
   { value: "all", label: "All time", hours: 0 },
@@ -320,10 +321,14 @@ export default function EventsPage() {
                       <div className="text-xs text-muted-foreground">user_id: {e.user_id}</div>
                     ) : null}
                     {e.properties && Object.keys(e.properties).length > 0 ? (
-                      <pre className="mt-1 overflow-x-auto rounded bg-muted p-2 text-xs">
-                        {JSON.stringify(e.properties, null, 2)}
-                      </pre>
-                    ) : null}
+                                          <div className="mt-1 overflow-x-auto rounded bg-muted p-2">
+                                            <JsonViewer
+                                              data={e.properties as Record<string, unknown>}
+                                              rootLabel="$.properties"
+                                              initialExpandedDepth={3}
+                                            />
+                                          </div>
+                                        ) : null}
                   </li>
                 ))}
               </ul>
