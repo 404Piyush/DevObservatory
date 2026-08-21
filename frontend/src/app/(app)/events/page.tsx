@@ -1,150 +1,129 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-
-type Org = { id: string; name: string; created_at: string };
-type Project = { id: string; organization_id: string; name: string; created_at: string };
-type Event = {
-  id: number;
-  project_id: string;
-  event_name: string;
-  user_id: string | null;
-  timestamp: string;
-  properties: Record<string, unknown>;
-  received_at: string;
-};
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ApiError } from "@/lib/api-client";
+import { useEvents, useOrgs, useProjects } from "@/lib/queries";
+import { useSelectorStore } from "@/components/app/selector-store";
 
 export default function EventsPage() {
-  const [orgs, setOrgs] = useState<Org[]>([]);
-  const [orgId, setOrgId] = useState<string>("");
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState<string>("");
-  const [events, setEvents] = useState<Event[]>([]);
+  const orgId = useSelectorStore((s) => s.orgId);
+  const projectId = useSelectorStore((s) => s.projectId);
+  const setOrg = useSelectorStore((s) => s.setOrg);
+  const setProject = useSelectorStore((s) => s.setProject);
 
-  const selectOrg = useCallback((nextOrgId: string) => {
-    setOrgId(nextOrgId);
-    setProjects([]);
-    setProjectId("");
-    setEvents([]);
-  }, []);
+  const orgs = useOrgs();
+  const projects = useProjects(orgId);
+  const events = useEvents(projectId);
 
-  const selectProject = useCallback((nextProjectId: string) => {
-    setProjectId(nextProjectId);
-    setEvents([]);
-  }, []);
+  // Auto-select first org if none picked yet
+  useEffect(() => {
+    if (!orgId && orgs.data && orgs.data.length > 0) {
+      setOrg(orgs.data[0].id);
+    }
+  }, [orgId, orgs.data, setOrg]);
+
+  // Auto-select first project under the chosen org
+  useEffect(() => {
+    if (projects.data && projects.data.length > 0) {
+      const exists = projects.data.some((p) => p.id === projectId);
+      if (!exists) setProject(projects.data[0].id);
+    } else if (projects.data && projects.data.length === 0) {
+      setProject(null);
+    }
+  }, [projects.data, projectId, setProject]);
 
   useEffect(() => {
-    fetch("/api/orgs")
-      .then((r) => r.json() as Promise<Org[]>)
-      .then((data) => {
-        setOrgs(data);
-        if (!orgId && data.length > 0) selectOrg(data[0]!.id);
-      })
-      .catch(() => setOrgs([]));
-  }, [orgId, selectOrg]);
-
-  useEffect(() => {
-    if (!orgId) return;
-    fetch(`/api/orgs/${orgId}/projects`)
-      .then((r) => r.json() as Promise<Project[]>)
-      .then((data) => {
-        setProjects(data);
-        if (data.length > 0) selectProject(data[0]!.id);
-      })
-      .catch(() => setProjects([]));
-  }, [orgId, selectProject]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    fetch(`/api/projects/${projectId}/events`)
-      .then((r) => r.json() as Promise<Event[]>)
-      .then((data) => setEvents(Array.isArray(data) ? data : []))
-      .catch(() => setEvents([]));
-  }, [projectId]);
-
-  async function refresh() {
-    if (!projectId) return;
-    const res = await fetch(`/api/projects/${projectId}/events`);
-    const data = (await res.json().catch(() => [])) as Event[];
-    setEvents(Array.isArray(data) ? data : []);
-  }
+    if (events.error) {
+      const detail = events.error instanceof ApiError ? events.error.detail : "Could not load events";
+      toast.error(detail);
+    }
+  }, [events.error]);
 
   return (
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Recent events</CardTitle>
+          <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="orgSelect">Organization</Label>
-              <select
-                id="orgSelect"
-                value={orgId}
-                onChange={(e) => selectOrg(e.target.value)}
-                className={cn("h-10 rounded-md border border-input bg-background px-3 text-sm")}
-              >
-                <option value="">—</option>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="org-select">Organization</Label>
+            <Select value={orgId ?? ""} onValueChange={(v) => setOrg(v)}>
+              <SelectTrigger id="org-select">
+                <SelectValue placeholder="Select organization" />
+              </SelectTrigger>
+              <SelectContent>
+                {(orgs.data ?? []).map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
                     {o.name}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-
-            <div className="grid gap-2 md:col-span-2">
-              <Label htmlFor="projectSelect">Project</Label>
-              <div className="flex gap-2">
-                <select
-                  id="projectSelect"
-                  value={projectId}
-                  onChange={(e) => selectProject(e.target.value)}
-                  className={cn("h-10 w-full rounded-md border border-input bg-background px-3 text-sm")}
-                >
-                  <option value="">—</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <Button variant="outline" onClick={() => refresh()}>
-                  Refresh
-                </Button>
-              </div>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
 
+          <div className="grid gap-2">
+            <Label htmlFor="project-select">Project</Label>
+            <Select
+              value={projectId ?? ""}
+              onValueChange={(v) => setProject(v)}
+              disabled={!orgId || (projects.data?.length ?? 0) === 0}
+            >
+              <SelectTrigger id="project-select">
+                <SelectValue placeholder={orgId ? "Select project" : "Pick an organization first"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(projects.data ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Recent events</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => events.refetch()} disabled={!projectId || events.isFetching}>
+            {events.isFetching ? "Refreshing…" : "Refresh"}
+          </Button>
+        </CardHeader>
+        <CardContent>
           {!projectId ? (
-            <div className="text-sm text-muted-foreground">Select a project.</div>
-          ) : events.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Pick a project to see its events.</div>
+          ) : events.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading events…</div>
+          ) : !events.data || events.data.length === 0 ? (
             <div className="text-sm text-muted-foreground">
-              No events yet. Send an event to POST /api/events with X-API-Key.
+              No events yet. Send one with <code className="font-mono text-xs">POST /api/events</code>.
             </div>
           ) : (
             <ul className="grid gap-2">
-              {events.map((e) => (
-                <li key={e.id} className="rounded-md border p-3">
+              {events.data.map((e) => (
+                <li key={e.id} className="rounded-md border p-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <div className="font-medium">{e.event_name}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">{e.event_name}</span>
+                    <span className="text-xs text-muted-foreground">
                       {new Date(e.received_at).toLocaleString()}
-                    </div>
+                    </span>
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    user_id: {e.user_id ?? "—"} • timestamp:{" "}
-                    {new Date(e.timestamp).toLocaleString()}
-                  </div>
-                  <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 text-xs">
-                    {JSON.stringify(e.properties ?? {}, null, 2)}
-                  </pre>
+                  {e.user_id ? (
+                    <div className="text-xs text-muted-foreground">user_id: {e.user_id}</div>
+                  ) : null}
+                  {e.properties && Object.keys(e.properties).length > 0 ? (
+                    <pre className="mt-1 overflow-x-auto rounded bg-muted p-2 text-xs">
+                      {JSON.stringify(e.properties, null, 2)}
+                    </pre>
+                  ) : null}
                 </li>
               ))}
             </ul>

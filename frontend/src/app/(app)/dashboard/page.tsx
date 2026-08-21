@@ -1,35 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiError } from "@/lib/api-client";
+import { useEvents, useMetrics, useOrgs } from "@/lib/queries";
 
-type Metrics = {
-  total_events: number;
-  events_per_minute: number;
-  active_projects: number;
-};
-
-type Org = { id: string; name: string; created_at: string };
+function formatNumber(n: number) {
+  return n.toLocaleString();
+}
 
 export default function DashboardPage() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [orgs, setOrgs] = useState<Org[] | null>(null);
+  const metrics = useMetrics();
+  const orgs = useOrgs();
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/metrics/overview").then((r) => r.json() as Promise<Metrics>),
-      fetch("/api/orgs").then((r) => r.json() as Promise<Org[]>),
-    ])
-      .then(([m, o]) => {
-        setMetrics(m);
-        setOrgs(o);
-      })
-      .catch(() => {
-        setMetrics({ total_events: 0, events_per_minute: 0, active_projects: 0 });
-        setOrgs([]);
-      });
-  }, []);
+    if (metrics.error) {
+      const detail = metrics.error instanceof ApiError ? metrics.error.detail : "Could not load metrics";
+      toast.error(detail);
+    }
+  }, [metrics.error]);
 
   return (
     <div className="grid gap-6">
@@ -39,7 +30,7 @@ export default function DashboardPage() {
             <CardTitle>Total events</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {metrics ? metrics.total_events.toLocaleString() : "—"}
+            {metrics.data ? formatNumber(metrics.data.total_events) : "—"}
           </CardContent>
         </Card>
         <Card>
@@ -47,7 +38,7 @@ export default function DashboardPage() {
             <CardTitle>Events / minute</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {metrics ? metrics.events_per_minute.toLocaleString() : "—"}
+            {metrics.data ? formatNumber(metrics.data.events_per_minute) : "—"}
           </CardContent>
         </Card>
         <Card>
@@ -55,7 +46,7 @@ export default function DashboardPage() {
             <CardTitle>Active projects</CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {metrics ? metrics.active_projects.toLocaleString() : "—"}
+            {metrics.data ? formatNumber(metrics.data.active_projects) : "—"}
           </CardContent>
         </Card>
       </div>
@@ -65,15 +56,11 @@ export default function DashboardPage() {
           <CardTitle>Organizations</CardTitle>
         </CardHeader>
         <CardContent>
-          {orgs === null ? (
+          {orgs.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : orgs.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              Create an organization in Projects.
-            </div>
-          ) : (
+          ) : orgs.data && orgs.data.length > 0 ? (
             <ul className="grid gap-2">
-              {orgs.map((o) => (
+              {orgs.data.map((o) => (
                 <li key={o.id} className="flex items-center justify-between rounded-md border p-3">
                   <div className="font-medium">{o.name}</div>
                   <div className="text-xs text-muted-foreground">
@@ -82,6 +69,8 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ul>
+          ) : (
+            <div className="text-sm text-muted-foreground">Create an organization in Projects.</div>
           )}
         </CardContent>
       </Card>

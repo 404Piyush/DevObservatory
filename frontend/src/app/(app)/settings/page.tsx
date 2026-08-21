@@ -1,25 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-type Me = {
-  id: string;
-  email: string;
-  name: string | null;
-  created_at: string;
-};
+import { useMe } from "@/lib/queries";
 
 export default function SettingsPage() {
-  const [me, setMe] = useState<Me | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json() as Promise<Me>)
-      .then((data) => setMe(data))
-      .catch(() => setMe(null));
-  }, []);
+  const me = useMe();
+  const data = me.data;
 
   return (
     <div className="grid gap-6">
@@ -30,15 +16,15 @@ export default function SettingsPage() {
         <CardContent className="grid gap-2 text-sm">
           <div>
             <span className="text-muted-foreground">Email:</span>{" "}
-            <span className="font-medium">{me ? me.email : "—"}</span>
+            <span className="font-medium">{data ? data.email : "—"}</span>
           </div>
           <div>
             <span className="text-muted-foreground">Name:</span>{" "}
-            <span className="font-medium">{me ? me.name ?? "—" : "—"}</span>
+            <span className="font-medium">{data ? data.name ?? "—" : "—"}</span>
           </div>
           <div>
             <span className="text-muted-foreground">User ID:</span>{" "}
-            <span className="font-mono text-xs">{me ? me.id : "—"}</span>
+            <span className="font-mono text-xs">{data ? data.id : "—"}</span>
           </div>
         </CardContent>
       </Card>

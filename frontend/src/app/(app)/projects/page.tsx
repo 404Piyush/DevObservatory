@@ -1,302 +1,342 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Copy, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-
-type Org = { id: string; name: string; created_at: string };
-type Project = { id: string; organization_id: string; name: string; created_at: string };
-type ApiKey = {
-  id: string;
-  project_id: string;
-  name: string;
-  created_at: string;
-  revoked_at: string | null;
-  last_used_at: string | null;
-};
-type ApiKeyCreated = ApiKey & { api_key: string };
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ApiError } from "@/lib/api-client";
+import {
+  useApiKeys,
+  useCreateApiKey,
+  useCreateOrg,
+  useCreateProject,
+  useOrgs,
+  useProjects,
+  useRevokeApiKey,
+} from "@/lib/queries";
+import { useSelectorStore } from "@/components/app/selector-store";
+import type { ApiKeyCreated } from "@/lib/queries";
 
 export default function ProjectsPage() {
-  const [orgs, setOrgs] = useState<Org[]>([]);
-  const [orgId, setOrgId] = useState<string>("");
+  const orgId = useSelectorStore((s) => s.orgId);
+  const projectId = useSelectorStore((s) => s.projectId);
+  const setOrg = useSelectorStore((s) => s.setOrg);
+  const setProject = useSelectorStore((s) => s.setProject);
+
+  const orgs = useOrgs();
+  const projects = useProjects(orgId);
+  const apiKeys = useApiKeys(projectId);
+
+  const createOrg = useCreateOrg();
+    const createProject = useCreateProject(orgId);
+    const createApiKey = useCreateApiKey(projectId);
+    const revokeApiKey = useRevokeApiKey(projectId);
+
   const [orgName, setOrgName] = useState("");
-
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState<string>("");
   const [projectName, setProjectName] = useState("");
-
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [apiKeyName, setApiKeyName] = useState("");
+
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
+  const [revealedKey, setRevealedKey] = useState(false);
 
-  const selectOrg = useCallback((nextOrgId: string) => {
-    setOrgId(nextOrgId);
-    setProjects([]);
-    setProjectId("");
-    setApiKeys([]);
-    setCreatedKey(null);
-  }, []);
-
-  const selectProject = useCallback((nextProjectId: string) => {
-    setProjectId(nextProjectId);
-    setApiKeys([]);
-    setCreatedKey(null);
-  }, []);
-
-  const selectedProject = useMemo(
-    () => projects.find((p) => p.id === projectId) ?? null,
-    [projects, projectId],
-  );
-
+  // Auto-select first org/project if missing
   useEffect(() => {
-    fetch("/api/orgs")
-      .then((r) => r.json() as Promise<Org[]>)
-      .then((data) => {
-        setOrgs(data);
-        if (!orgId && data.length > 0) selectOrg(data[0]!.id);
-      })
-      .catch(() => setOrgs([]));
-  }, [orgId, selectOrg]);
-
+    if (!orgId && orgs.data && orgs.data.length > 0) setOrg(orgs.data[0].id);
+  }, [orgId, orgs.data, setOrg]);
   useEffect(() => {
-    if (!orgId) return;
-    fetch(`/api/orgs/${orgId}/projects`)
-      .then((r) => r.json() as Promise<Project[]>)
-      .then((data) => {
-        setProjects(data);
-        if (data.length > 0) selectProject(data[0]!.id);
-      })
-      .catch(() => setProjects([]));
-  }, [orgId, selectProject]);
+    if (projects.data && projects.data.length > 0) {
+      const exists = projects.data.some((p) => p.id === projectId);
+      if (!exists) setProject(projects.data[0].id);
+    } else if (projects.data && projects.data.length === 0) {
+      setProject(null);
+    }
+  }, [projects.data, projectId, setProject]);
 
-  useEffect(() => {
-    if (!projectId) return;
-    fetch(`/api/projects/${projectId}/api-keys`)
-      .then((r) => r.json() as Promise<ApiKey[]>)
-      .then((data) => setApiKeys(data))
-      .catch(() => setApiKeys([]));
-  }, [projectId]);
-
-  async function createOrg() {
-    const res = await fetch("/api/orgs", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: orgName }),
-    });
-    if (!res.ok) return;
-    const org = (await res.json()) as Org;
-    setOrgs((prev) => [org, ...prev]);
-    selectOrg(org.id);
-    setOrgName("");
+  function handleApiError(err: unknown, fallback: string) {
+    const detail = err instanceof ApiError ? err.detail : fallback;
+    toast.error(detail);
   }
 
-  async function createProject() {
-    if (!orgId) return;
-    const res = await fetch(`/api/orgs/${orgId}/projects`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: projectName }),
-    });
-    if (!res.ok) return;
-    const project = (await res.json()) as Project;
-    setProjects((prev) => [project, ...prev]);
-    selectProject(project.id);
-    setProjectName("");
+  async function onCreateOrg() {
+    if (!orgName.trim()) return;
+    try {
+      const created = await createOrg.mutateAsync(orgName.trim());
+      setOrg(created.id);
+      setOrgName("");
+      toast.success("Organization created");
+    } catch (err) {
+      handleApiError(err, "Could not create organization");
+    }
   }
 
-  async function createApiKey() {
-    if (!projectId) return;
-    const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: apiKeyName }),
-    });
-    if (!res.ok) return;
-    const created = (await res.json()) as ApiKeyCreated;
-    setCreatedKey(created);
-    setApiKeys((prev) => [created, ...prev]);
-    setApiKeyName("");
+  async function onCreateProject() {
+    if (!projectName.trim()) return;
+    try {
+      const created = await createProject.mutateAsync(projectName.trim());
+      setProject(created.id);
+      setProjectName("");
+      toast.success("Project created");
+    } catch (err) {
+      handleApiError(err, "Could not create project");
+    }
   }
 
-  async function revokeKey(apiKeyId: string) {
-    if (!projectId) return;
-    const res = await fetch(`/api/projects/${projectId}/api-keys/${apiKeyId}`, { method: "DELETE" });
-    if (!res.ok) return;
-    setApiKeys((prev) =>
-      prev.map((k) => (k.id === apiKeyId ? { ...k, revoked_at: new Date().toISOString() } : k)),
-    );
+  async function onCreateApiKey() {
+    if (!apiKeyName.trim()) return;
+    try {
+      const created = await createApiKey.mutateAsync(apiKeyName.trim());
+      setCreatedKey(created);
+      setApiKeyName("");
+      setRevealedKey(true);
+      toast.success("API key created — copy it now");
+    } catch (err) {
+      handleApiError(err, "Could not create API key");
+    }
+  }
+
+  async function onRevoke(keyId: string) {
+    try {
+      await revokeApiKey.mutateAsync(keyId);
+      toast.success("API key revoked");
+    } catch (err) {
+      handleApiError(err, "Could not revoke API key");
+    }
+  }
+
+  async function copyToClipboard(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("Clipboard unavailable");
+    }
   }
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Organization</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {orgs.length === 0 ? (
-              <div className="grid gap-3">
-                <div className="text-sm text-muted-foreground">
-                  Create your first organization to start using DevObservatory.
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="orgName">Organization name</Label>
-                  <Input id="orgName" value={orgName} onChange={(e) => setOrgName(e.target.value)} />
-                </div>
-                <Button onClick={createOrg} disabled={!orgName.trim()}>
-                  Create organization
-                </Button>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <Label htmlFor="orgSelect">Select organization</Label>
-                <select
-                  id="orgSelect"
-                  value={orgId}
-                  onChange={(e) => selectOrg(e.target.value)}
-                  className={cn(
-                    "h-10 rounded-md border border-input bg-background px-3 text-sm",
-                  )}
-                >
-                  {orgs.map((o) => (
-                    <option key={o.id} value={o.id}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Organizations</CardTitle>
+          <CardDescription>Group projects you want to track together.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid grow gap-1">
+              <Label htmlFor="org-select-existing">Existing</Label>
+              <Select value={orgId ?? ""} onValueChange={(v) => setOrg(v)}>
+                <SelectTrigger id="org-select-existing">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(orgs.data ?? []).map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
                       {o.name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                <div className="grid gap-2 pt-2">
-                  <Label htmlFor="newOrgName">New organization</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="newOrgName"
-                      placeholder="e.g. Acme Inc"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                    />
-                    <Button onClick={createOrg} disabled={!orgName.trim()}>
-                      Create
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Projects</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {!orgId ? (
-              <div className="text-sm text-muted-foreground">Select an organization.</div>
-            ) : (
-              <>
-                <div className="grid gap-2">
-                  <Label htmlFor="projectName">New project</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="projectName"
-                      placeholder="e.g. telemetry-prod"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                    />
-                    <Button onClick={createProject} disabled={!projectName.trim()}>
-                      Create
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="projectSelect">Select project</Label>
-                  <select
-                    id="projectSelect"
-                    value={projectId}
-                    onChange={(e) => selectProject(e.target.value)}
-                    className={cn(
-                      "h-10 rounded-md border border-input bg-background px-3 text-sm",
-                    )}
-                  >
-                    <option value="">—</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grow gap-1">
+              <Label htmlFor="org-name">New organization</Label>
+              <Input
+                id="org-name"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="e.g. Acme"
+              />
+            </div>
+            <Button onClick={onCreateOrg} disabled={!orgName.trim() || createOrg.isPending}>
+              {createOrg.isPending ? "Creating…" : "Create"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>API Keys</CardTitle>
+          <CardTitle>Projects</CardTitle>
+          <CardDescription>Each project gets its own API keys and event stream.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {!selectedProject ? (
-            <div className="text-sm text-muted-foreground">Select a project to manage keys.</div>
-          ) : (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="apiKeyName">New API key</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="apiKeyName"
-                    placeholder="e.g. ingestion"
-                    value={apiKeyName}
-                    onChange={(e) => setApiKeyName(e.target.value)}
-                  />
-                  <Button onClick={createApiKey} disabled={!apiKeyName.trim()}>
-                    Create
-                  </Button>
-                </div>
-              </div>
-
-              {createdKey ? (
-                <div className="rounded-md border p-3">
-                  <div className="text-sm font-medium">New API key (copy once)</div>
-                  <div className="mt-2 break-all rounded bg-muted p-2 font-mono text-xs">
-                    {createdKey.api_key}
-                  </div>
-                </div>
-              ) : null}
-
-              {apiKeys.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No API keys yet.</div>
-              ) : (
-                <ul className="grid gap-2">
-                  {apiKeys.map((k) => (
-                    <li key={k.id} className="flex items-center justify-between rounded-md border p-3">
-                      <div className="grid">
-                        <div className="font-medium">{k.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {k.revoked_at ? "Revoked" : "Active"} • Created{" "}
-                          {new Date(k.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => revokeKey(k.id)}
-                        disabled={!!k.revoked_at}
-                      >
-                        Revoke
-                      </Button>
-                    </li>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid grow gap-1">
+              <Label htmlFor="project-select-existing">Existing</Label>
+              <Select
+                value={projectId ?? ""}
+                onValueChange={(v) => setProject(v)}
+                disabled={!orgId || (projects.data?.length ?? 0) === 0}
+              >
+                <SelectTrigger id="project-select-existing">
+                  <SelectValue placeholder={orgId ? "Select project" : "Pick an organization"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(projects.data ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
                   ))}
-                </ul>
-              )}
-            </>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grow gap-1">
+              <Label htmlFor="project-name">New project</Label>
+              <Input
+                id="project-name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g. web-app"
+                disabled={!orgId}
+              />
+            </div>
+            <Button
+              onClick={onCreateProject}
+              disabled={!orgId || !projectName.trim() || createProject.isPending}
+            >
+              {createProject.isPending ? "Creating…" : "Create"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>API keys</CardTitle>
+          <CardDescription>
+            Send events with <code className="font-mono text-xs">X-API-Key: &lt;key&gt;</code> at
+            <code className="font-mono text-xs"> POST /api/events</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid grow gap-1">
+              <Label htmlFor="api-key-name">New key name</Label>
+              <Input
+                id="api-key-name"
+                value={apiKeyName}
+                onChange={(e) => setApiKeyName(e.target.value)}
+                placeholder="e.g. production-ingest"
+                disabled={!projectId}
+              />
+            </div>
+            <Button onClick={onCreateApiKey} disabled={!projectId || !apiKeyName.trim() || createApiKey.isPending}>
+              {createApiKey.isPending ? "Creating…" : "Create key"}
+            </Button>
+          </div>
+
+          {apiKeys.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading keys…</div>
+          ) : !apiKeys.data || apiKeys.data.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No API keys yet.</div>
+          ) : (
+            <ul className="grid gap-2">
+              {apiKeys.data.map((k) => (
+                <li
+                  key={k.id}
+                  className="flex items-center justify-between rounded-md border p-3 text-sm"
+                >
+                  <div>
+                    <div className="font-medium">{k.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      created {new Date(k.created_at).toLocaleString()}
+                      {k.last_used_at
+                        ? ` · last used ${new Date(k.last_used_at).toLocaleString()}`
+                        : ""}
+                      {k.revoked_at ? " · revoked" : ""}
+                    </div>
+                  </div>
+                  {!k.revoked_at ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onRevoke(k.id)}
+                      disabled={revokeApiKey.isPending}
+                    >
+                      Revoke
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!createdKey}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreatedKey(null);
+            setRevealedKey(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save your new API key</DialogTitle>
+            <DialogDescription>
+              This is the only time the full key will be shown. Copy it somewhere safe before closing
+              this dialog.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <Label>Name</Label>
+            <div className="text-sm">{createdKey?.name}</div>
+
+            <Label>Key</Label>
+            <div className="flex items-center gap-2">
+              <code className="grow overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+                {revealedKey ? createdKey?.api_key : "•".repeat(40)}
+              </code>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setRevealedKey((v) => !v)}
+                    aria-label={revealedKey ? "Hide key" : "Reveal key"}
+                  >
+                    {revealedKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{revealedKey ? "Hide" : "Reveal"}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => createdKey && copyToClipboard(createdKey.api_key, "API key")}
+                    aria-label="Copy key"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatedKey(null)}>
+              I've saved it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
