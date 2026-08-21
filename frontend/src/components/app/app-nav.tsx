@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -29,12 +36,12 @@ export function AppNav() {
 
   return (
     <header className="border-b bg-background">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="font-semibold">
             DevObservatory
           </Link>
-          <nav className="hidden items-center gap-4 md:flex">
+          <nav className="hidden items-center gap-4 md:flex" aria-label="Primary">
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -49,9 +56,25 @@ export function AppNav() {
             ))}
           </nav>
         </div>
-        <Button variant="outline" onClick={onLogout} disabled={loading}>
-          {loading ? "Signing out..." : "Sign out"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="md:hidden" aria-label="Open menu">
+                <Menu className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="md:hidden">
+              {navItems.map((item) => (
+                <DropdownMenuItem key={item.href} asChild>
+                  <Link href={item.href}>{item.label}</Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" onClick={onLogout} disabled={loading}>
+            {loading ? "Signing out…" : "Sign out"}
+          </Button>
+        </div>
       </div>
     </header>
   );

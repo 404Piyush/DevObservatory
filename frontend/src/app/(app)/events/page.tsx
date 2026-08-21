@@ -238,7 +238,7 @@ export default function EventsPage() {
             <CardHeader>
               <CardTitle>Events / minute (last 24h)</CardTitle>
             </CardHeader>
-            <CardContent className="h-64">
+            <CardContent className="h-56 sm:h-64">
               {analytics.isLoading ? (
                 <div className="text-sm text-muted-foreground">Loading…</div>
               ) : !analytics.data || analytics.data.timeseries.length === 0 ? (
@@ -261,7 +261,7 @@ export default function EventsPage() {
             <CardHeader>
               <CardTitle>Top events (last 24h)</CardTitle>
             </CardHeader>
-            <CardContent className="h-64">
+            <CardContent className="h-56 sm:h-64">
               {analytics.isLoading ? (
                 <div className="text-sm text-muted-foreground">Loading…</div>
               ) : !analytics.data || analytics.data.top_events.length === 0 ? (

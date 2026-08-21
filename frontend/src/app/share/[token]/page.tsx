@@ -69,7 +69,7 @@ export default function PublicSharePage() {
               <CardHeader>
                 <CardTitle>Events / minute (last 24h)</CardTitle>
               </CardHeader>
-              <CardContent className="h-64">
+              <CardContent className="h-56 sm:h-64">
                 {data && data.timeseries.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data.timeseries}>
@@ -98,7 +98,7 @@ export default function PublicSharePage() {
               <CardHeader>
                 <CardTitle>Top events (last 24h)</CardTitle>
               </CardHeader>
-              <CardContent className="h-64">
+              <CardContent className="h-56 sm:h-64">
                 {data && data.top_events.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.top_events} layout="vertical">
