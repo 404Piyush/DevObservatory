@@ -246,11 +246,11 @@ export default function EventsPage() {
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={analytics.data.timeseries}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="bucket" tickFormatter={formatBucket} minTickGap={32} />
-                    <YAxis allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="bucket" tickFormatter={formatBucket} minTickGap={32} tick={{ fill: "var(--chart-axis)" }} />
+                                        <YAxis allowDecimals={false} tick={{ fill: "var(--chart-axis)" }} />
                     <RechartsTooltip labelFormatter={(v) => new Date(v as string).toLocaleString()} />
-                    <Line type="monotone" dataKey="count" stroke="#6366f1" dot={false} strokeWidth={2} />
+                    <Line type="monotone" dataKey="count" stroke="var(--chart-1)" dot={false} strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -269,11 +269,11 @@ export default function EventsPage() {
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={analytics.data.top_events} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis type="category" dataKey="event_name" width={120} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--chart-axis)" }} />
+                                        <YAxis type="category" dataKey="event_name" width={120} tick={{ fill: "var(--chart-axis)" }} />
                     <RechartsTooltip />
-                    <Bar dataKey="count" fill="#6366f1" />
+                    <Bar dataKey="count" fill="var(--chart-1)" />
                   </BarChart>
                 </ResponsiveContainer>
               )}

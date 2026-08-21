@@ -20,6 +20,12 @@
   --border: #e5e7eb;
   --input: #e5e7eb;
   --ring: #93c5fd;
+  --chart-1: #6366f1;
+  --chart-1-soft: rgba(99, 102, 241, 0.18);
+  --chart-grid: #e5e7eb;
+  --chart-axis: #6b7280;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-fg: #171717;
 }
 
 @theme inline {
@@ -67,6 +73,12 @@
     --border: #1f2937;
     --input: #1f2937;
     --ring: #60a5fa;
+    --chart-1: #818cf8;
+    --chart-1-soft: rgba(129, 140, 248, 0.22);
+    --chart-grid: #1f2937;
+    --chart-axis: #9ca3af;
+    --chart-tooltip-bg: #1f2937;
+    --chart-tooltip-fg: #ededed;
   }
 }
 
