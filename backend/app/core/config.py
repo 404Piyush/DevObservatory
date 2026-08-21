@@ -1,6 +1,6 @@
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +22,26 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me"
     access_token_ttl_seconds: int = 900
     refresh_token_ttl_seconds: int = 60 * 60 * 24 * 30
+
+    api_key_hash_secret: str = "change-me-too"
+
+    _insecure_defaults = {"", "change-me", "change-me-too"}
+
+    @model_validator(mode="after")
+    def _enforce_strong_secrets(self) -> "Settings":
+        if self.environment == "local":
+            return self
+        weak = []
+        if self.jwt_secret_key in self._insecure_defaults or len(self.jwt_secret_key) < 32:
+            weak.append("JWT_SECRET_KEY")
+        if self.api_key_hash_secret in self._insecure_defaults or len(self.api_key_hash_secret) < 32:
+            weak.append("API_KEY_HASH_SECRET")
+        if weak:
+            raise ValueError(
+                f"Refusing to start: weak secrets for {', '.join(weak)}. "
+                "Set strong values (>=32 chars) via env in non-local environments."
+            )
+        return self
 
     cors_allowed_origins: list[str] = Field(
         default=["http://localhost:3000"],

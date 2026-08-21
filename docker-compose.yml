@@ -37,26 +37,27 @@ services:
       - devobservatory_minio:/data
 
   backend:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    environment:
-      POSTGRES_DSN: postgresql+psycopg://devobservatory:devobservatory@postgres:5432/devobservatory
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://devobservatory:devobservatory@rabbitmq:5672/
-      JWT_SECRET_KEY: change-me
-      CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
-      S3_ENDPOINT_URL: http://minio:9000
-      S3_ACCESS_KEY_ID: devobservatory
-      S3_SECRET_ACCESS_KEY: devobservatory
-      S3_BUCKET: devobservatory
-    ports:
-      - "8000:8000"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-      - minio
+      build:
+        context: .
+        dockerfile: docker/backend.Dockerfile
+      environment:
+        POSTGRES_DSN: postgresql+psycopg://devobservatory:devobservatory@postgres:5432/devobservatory
+        REDIS_URL: redis://redis:6379/0
+        RABBITMQ_URL: amqp://devobservatory:devobservatory@rabbitmq:5672/
+        JWT_SECRET_KEY: change-me
+        API_KEY_HASH_SECRET: change-me-too
+        CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+        S3_ENDPOINT_URL: http://minio:9000
+        S3_ACCESS_KEY_ID: devobservatory
+        S3_SECRET_ACCESS_KEY: devobservatory
+        S3_BUCKET: devobservatory
+      ports:
+        - "8000:8000"
+      depends_on:
+        - postgres
+        - redis
+        - rabbitmq
+        - minio
 
   worker:
     build:

@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_token, hash_api_key
 from app.db import get_db
-from app.models import ApiKey, Membership, OrgRole, Project, Session as DbSession, User
-
+from app.models import ApiKey, Membership, OrgRole, Project, User
+from app.models import Session as DbSession
 
 auth_scheme = HTTPBearer(auto_error=False)
 
@@ -125,3 +125,31 @@ def get_project_from_api_key(
     if not project:
         raise _unauthorized("Invalid API key")
     return project
+
+
+_ROLE_ORDER = {OrgRole.viewer: 0, OrgRole.developer: 1, OrgRole.admin: 2}
+
+
+def require_project_role(min_role: OrgRole):
+    """Dependency factory: caller must hold at least `min_role` on the project's org."""
+
+    def _dep(
+        project_id: uuid.UUID,
+        user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Membership:
+        project = db.get(Project, project_id)
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        membership = db.scalar(
+            select(Membership).where(
+                Membership.organization_id == project.organization_id, Membership.user_id == user.id
+            )
+        )
+        if not membership:
+            raise _forbidden("Not a member of this organization")
+        if _ROLE_ORDER[membership.role] < _ROLE_ORDER[min_role]:
+            raise _forbidden("Insufficient role")
+        return membership
+
+    return _dep

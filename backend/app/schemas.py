@@ -62,7 +62,9 @@ class InviteOut(BaseModel):
     email: EmailStr
     role: OrgRole
     created_at: datetime
+    expires_at: datetime
     accepted_at: datetime | None
+    revoked_at: datetime | None
 
 
 class InviteCreated(InviteOut):

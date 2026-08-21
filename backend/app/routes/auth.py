@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,16 +15,17 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.deps import get_current_session, get_current_user
+from app.limiter import limiter
 from app.models import Session as DbSession
 from app.models import User
 from app.schemas import LoginRequest, RefreshRequest, TokenPair, UserCreate, UserOut
-
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
+@limiter.limit("10/hour")
+def register(request: Request, payload: UserCreate, db: Session = Depends(get_db)) -> User:
     existing = db.scalar(select(User).where(User.email == payload.email))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -36,7 +37,8 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
 
 
 @router.post("/login", response_model=TokenPair)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPair:
+@limiter.limit("10/minute")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPair:
     user = db.scalar(select(User).where(User.email == payload.email))
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -60,8 +62,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPair:
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
+def _revoke_session_family(db: Session, family_id: uuid.UUID) -> None:
+    """Revoke every session in a refresh-token family. Called when reuse is detected."""
+    now = datetime.now(UTC)
+    family_sessions = db.scalars(select(DbSession).where(DbSession.refresh_family_id == family_id)).all()
+    for s in family_sessions:
+        if s.revoked_at is None:
+            s.revoked_at = now
+            db.add(s)
+
+
 @router.post("/refresh", response_model=TokenPair)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
+@limiter.limit("30/minute")
+def refresh(request: Request, payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
     try:
         decoded = decode_token(payload.refresh_token)
     except ValueError:
@@ -76,20 +89,30 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     db_session = db.get(DbSession, uuid.UUID(session_id))
-    if not db_session or db_session.revoked_at is not None or db_session.expires_at <= datetime.now(UTC):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-
-    if db_session.refresh_token_hash != hash_api_key(payload.refresh_token):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+    if not db_session:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found")
 
     now = datetime.now(UTC)
+
+    # Reuse detection: if the session was already revoked OR the supplied hash doesn't match
+    # the current hash, treat this as compromise and revoke the entire family.
+    if db_session.revoked_at is not None or db_session.expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+
+    incoming_hash = hash_api_key(payload.refresh_token)
+    if db_session.refresh_token_hash != incoming_hash:
+        _revoke_session_family(db, db_session.refresh_family_id)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token reuse detected")
+
+    new_refresh_token = create_refresh_token(subject=user_id, session_id=session_id, now=now)
+    db_session.refresh_token_hash = hash_api_key(new_refresh_token)
+    db_session.last_used_at = now
     access_token = create_access_token(subject=user_id, session_id=session_id, now=now)
-    refresh_token = create_refresh_token(subject=user_id, session_id=session_id, now=now)
-    db_session.refresh_token_hash = hash_api_key(refresh_token)
     db.add(db_session)
     db.commit()
 
-    return TokenPair(access_token=access_token, refresh_token=refresh_token)
+    return TokenPair(access_token=access_token, refresh_token=new_refresh_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -102,7 +125,6 @@ def logout(
     session.revoked_at = datetime.now(UTC)
     db.add(session)
     db.commit()
-    return None
 
 
 @router.get("/me", response_model=UserOut)

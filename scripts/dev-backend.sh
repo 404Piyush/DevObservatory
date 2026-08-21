@@ -15,6 +15,7 @@ export POSTGRES_DSN="${POSTGRES_DSN:-postgresql+psycopg://devobservatory:devobse
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
 export RABBITMQ_URL="${RABBITMQ_URL:-amqp://devobservatory:devobservatory@localhost:5672/}"
 export JWT_SECRET_KEY="${JWT_SECRET_KEY:-change-me}"
+export API_KEY_HASH_SECRET="${API_KEY_HASH_SECRET:-change-me-too}"
 export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-[\"http://localhost:3000\"]}"
 export S3_ENDPOINT_URL="${S3_ENDPOINT_URL:-http://localhost:9000}"
 export S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-devobservatory}"

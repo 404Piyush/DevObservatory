@@ -7,24 +7,17 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_api_key, new_api_key
 from app.db import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_project_role
 from app.models import ApiKey, Membership, Organization, OrgRole, Project, User
-from app.schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyOut, ProjectCreate, ProjectOut
-
+from app.schemas import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
+    ProjectCreate,
+    ProjectOut,
+)
 
 router = APIRouter(tags=["projects"])
-
-
-def _require_project_role(db: Session, user_id: uuid.UUID, project: Project, min_role: OrgRole) -> Membership:
-    order = {OrgRole.viewer: 0, OrgRole.developer: 1, OrgRole.admin: 2}
-    membership = db.scalar(
-        select(Membership).where(Membership.organization_id == project.organization_id, Membership.user_id == user_id)
-    )
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this organization")
-    if order[membership.role] < order[min_role]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
-    return membership
 
 
 @router.post("/orgs/{organization_id}/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -75,12 +68,8 @@ def create_api_key(
     payload: ApiKeyCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _membership: Membership = Depends(require_project_role(OrgRole.developer)),
 ):
-    project = db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    _require_project_role(db, user.id, project, OrgRole.developer)
-
     plain = new_api_key()
     key_hash = hash_api_key(plain)
     api_key = ApiKey(project_id=project_id, name=payload.name, key_hash=key_hash)
@@ -103,12 +92,8 @@ def list_api_keys(
     project_id: uuid.UUID,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _membership: Membership = Depends(require_project_role(OrgRole.viewer)),
 ):
-    project = db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    _require_project_role(db, user.id, project, OrgRole.viewer)
-
     keys = db.scalars(select(ApiKey).where(ApiKey.project_id == project_id).order_by(ApiKey.created_at.desc())).all()
     return list(keys)
 
@@ -119,17 +104,12 @@ def revoke_api_key(
     api_key_id: uuid.UUID,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _membership: Membership = Depends(require_project_role(OrgRole.developer)),
 ) -> None:
-    project = db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    _require_project_role(db, user.id, project, OrgRole.developer)
-
     api_key = db.get(ApiKey, api_key_id)
     if not api_key or api_key.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
     api_key.revoked_at = datetime.now(UTC)
     db.add(api_key)
     db.commit()
-    return None
 

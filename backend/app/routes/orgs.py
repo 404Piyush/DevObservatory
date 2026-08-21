@@ -1,6 +1,6 @@
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -19,8 +19,9 @@ from app.schemas import (
     OrganizationOut,
 )
 
-
 router = APIRouter(prefix="/orgs", tags=["orgs"])
+
+INVITE_TTL = timedelta(days=7)
 
 
 @router.post("", response_model=OrganizationOut, status_code=status.HTTP_201_CREATED)
@@ -65,7 +66,14 @@ def create_invite(
 ):
     token = f"inv_{secrets.token_urlsafe(32)}"
     token_hash = hash_api_key(token)
-    invite = Invite(organization_id=organization_id, email=payload.email, role=payload.role, token_hash=token_hash)
+    now = datetime.now(UTC)
+    invite = Invite(
+        organization_id=organization_id,
+        email=payload.email,
+        role=payload.role,
+        token_hash=token_hash,
+        expires_at=now + INVITE_TTL,
+    )
     db.add(invite)
     db.commit()
     db.refresh(invite)
@@ -85,8 +93,13 @@ def accept_invite(payload: InviteAccept, user: User = Depends(get_current_user),
     invite = db.scalar(select(Invite).where(Invite.token_hash == hash_api_key(payload.token)))
     if not invite:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+    now = datetime.now(UTC)
+    if invite.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invite revoked")
     if invite.accepted_at is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invite already accepted")
+    if invite.expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invite expired")
     existing = db.scalar(
         select(Membership).where(Membership.organization_id == invite.organization_id, Membership.user_id == user.id)
     )
@@ -94,7 +107,7 @@ def accept_invite(payload: InviteAccept, user: User = Depends(get_current_user),
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already a member")
 
     membership = Membership(organization_id=invite.organization_id, user_id=user.id, role=invite.role)
-    invite.accepted_at = datetime.now(UTC)
+    invite.accepted_at = now
     db.add(membership)
     db.add(invite)
     db.commit()

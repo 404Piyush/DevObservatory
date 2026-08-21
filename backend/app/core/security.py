@@ -5,10 +5,24 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from app.core.config import settings
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
 
-from app.core.config import settings
+_REQUIRED_CLAIMS = ["exp", "iat", "sub", "sid", "typ"]
+
+
+def _decode_with_required_claims(token: str) -> dict[str, Any]:
+    payload: dict[str, Any] = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=["HS256"],
+        audience=settings.jwt_audience,
+        issuer=settings.jwt_issuer,
+        options={"require": _REQUIRED_CLAIMS},
+    )
+    return payload
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -54,14 +68,8 @@ def create_refresh_token(*, subject: str, session_id: str, now: datetime | None 
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=["HS256"],
-            audience=settings.jwt_audience,
-            issuer=settings.jwt_issuer,
-        )
-    except JWTError as e:
+        return _decode_with_required_claims(token)
+    except InvalidTokenError as e:
         raise ValueError("Invalid token") from e
 
 
@@ -71,6 +79,6 @@ def new_api_key() -> str:
 
 
 def hash_api_key(api_key: str) -> str:
-    digest = hmac.new(settings.jwt_secret_key.encode("utf-8"), api_key.encode("utf-8"), hashlib.sha256).digest()
+    digest = hmac.new(settings.api_key_hash_secret.encode("utf-8"), api_key.encode("utf-8"), hashlib.sha256).digest()
     return base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
 
