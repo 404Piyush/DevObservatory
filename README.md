@@ -11,18 +11,28 @@ DevObservatory is a lightweight “developer observability” side project: crea
 ## Features
 
 - Organizations and Projects
-- API keys per project
-- Event ingestion (`X-API-Key`)
-- Event query UI (last 200 events)
-- Rate limiting (SlowAPI)
-- Async ingestion pipeline (RabbitMQ + worker)
+- API keys per project (per-key last-used tracking)
+- Event ingestion (`X-API-Key`, async via RabbitMQ → worker → Postgres)
+- Live event stream (Server-Sent Events, Postgres NOTIFY trigger)
+- Per-project analytics dashboard: time-series chart, top-events bar chart
+- Conversion funnels (ordered event names → step-by-step conversion)
+- One-click demo data seed (~3,000 events across 30 days)
+- Tokenized public share links (read-only dashboards, 30-day TTL)
+- SDK snippet generator (cURL / Node / Python / Go)
+- Refresh-token rotation with family-based reuse detection
+- Invite flow with expiry + revocation
+- Rate limiting (SlowAPI) on auth endpoints
+- Security headers (HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy)
 
 ## Tech Stack
 
 - Backend: FastAPI + SQLAlchemy + Alembic + Postgres
-- Frontend: Next.js (App Router) + Tailwind
+- Frontend: Next.js 16 (App Router) + React 19 + Tailwind v4
+- Data: TanStack Query v5, Zustand (selector store), Sonner (toasts), Recharts
+- UI: shadcn/ui-style Radix primitives (Dialog, Dropdown, Select, Tooltip)
 - Queue/Worker: RabbitMQ + aio-pika worker
 - Infra: Docker Compose (Postgres, Redis, RabbitMQ, MinIO)
+- Tests: pytest (16 tests covering security + funnels + snippets)
 
 ## Architecture
 

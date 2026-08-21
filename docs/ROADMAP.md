@@ -23,39 +23,15 @@ This document tracks active and upcoming work on DevObservatory.
   `$ACCESS` and `$API_KEY`.
 - New tests in `backend/tests/test_security.py` (8 tests).
 
-## In progress
-
 ### Phase 2 — Modern stack + new features
-
-The shape of a portfolio-grade observability tool. Shipped as a series of
-focused commits, each tested and demoable on its own.
 
 | Commit | Scope |
 |---|---|
 | `infra: add ROADMAP` | This file. |
 | `frontend: TanStack Query + shadcn/ui primitives + Recharts` | Data fetching, dialogs, dropdowns, toasts, charts. No feature change. |
-| `backend: SSE event stream + Postgres LISTEN/NOTIFY bridge` | Real-time event feed via Server-Sent Events. |
-| `frontend: live events dashboard` | Replace polling with SSE; add time-series chart and top-events bar chart. |
-| `backend+frontend: analytics search` | Cursor-paginated event search by name, user_id, time range. |
-| `frontend: funnels` | UI to define a funnel (ordered event list); SQL computes step-by-step conversion. |
-| `frontend: demo mode` | One-click seed of a fake org + project + 30 days of synthetic events for portfolio demos. |
-| `frontend: share links` | Tokenized read-only URLs for a project's dashboard. |
-| `frontend: SDK snippet generator` | Per-language (curl / Node / Python / Go) copyable ingest snippet pre-filled with the user's API key. |
-| `chore: docs, screenshots, README polish` | Update screenshots and README. |
-
-### Why these choices
-
-- **TanStack Query v5** dedupes the `useEffect → fetch` chains every page
-  already has, and adds request cancellation, retries, and cache invalidation
-  for free.
-- **shadcn/ui** (Radix + Tailwind v4) gives us accessible primitives without
-  shipping a component library — the project already uses Radix.
-- **Recharts** for charts; **Sonner** for toasts. Both are tiny, dependency-free,
-  and composable.
-- **Postgres LISTEN/NOTIFY** for SSE rather than Redis pub/sub so the SSE path
-  works in any environment with Postgres.
-- **No SDK downloads** — the snippet generator outputs raw HTTP requests, not a
-  published npm package.
+| `feat: SSE event stream + per-project analytics dashboard` | Postgres NOTIFY trigger → SSE; per-minute time-series + top-events charts; live event feed with reconnect. |
+| `feat: funnels + demo seed + share links` | Conversion funnels, one-click demo seed (~3,000 events over 30 days), tokenized public share links. |
+| `feat: SDK snippet generator` | cURL / Node / Python / Go ingest snippets pre-filled with the user's API key. |
 
 ## Won't do
 

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ApiError } from "@/lib/api-client";
+import { ingestSnippet, type SdkLanguage } from "@/lib/snippets";
 import {
   useApiKeys,
   useCreateApiKey,
@@ -54,6 +55,8 @@ export default function ProjectsPage() {
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
     const [revealedKey, setRevealedKey] = useState(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [snippetLang, setSnippetLang] = useState<SdkLanguage>("curl");
+  const [snippetEventName, setSnippetEventName] = useState("user_signup");
 
   // Auto-select first org/project if missing
   useEffect(() => {
@@ -389,6 +392,47 @@ export default function ProjectsPage() {
                 <TooltipContent>Copy</TooltipContent>
               </Tooltip>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Try it now</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={snippetLang} onValueChange={(v) => setSnippetLang(v as SdkLanguage)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="curl">cURL</SelectItem>
+                  <SelectItem value="node">Node.js</SelectItem>
+                  <SelectItem value="python">Python</SelectItem>
+                  <SelectItem value="go">Go</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={snippetEventName}
+                onChange={(e) => setSnippetEventName(e.target.value)}
+                placeholder="event_name"
+                className="w-44"
+              />
+            </div>
+            <pre className="max-h-48 overflow-auto rounded bg-muted p-3 text-xs">
+              <code>{ingestSnippet(snippetLang, createdKey?.api_key ?? "<api-key>", snippetEventName)}</code>
+            </pre>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                createdKey &&
+                copyToClipboard(
+                  ingestSnippet(snippetLang, createdKey.api_key, snippetEventName),
+                  "Snippet",
+                )
+              }
+              disabled={!createdKey}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Copy snippet
+            </Button>
           </div>
 
           <DialogFooter>
