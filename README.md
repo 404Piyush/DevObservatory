@@ -4,9 +4,15 @@ DevObservatory is a lightweight “developer observability” side project: crea
 
 ## Screenshots
 
+### App
 ![Login](docs/images/login.png)
 ![Dashboard](docs/images/dashboard.png)
 ![Events](docs/images/events.png)
+
+### New in recent releases
+The following screenshots are placeholders pending capture: `funnels.png`,
+`retention.png`, `webhooks.png`, `landing.png`, `events-filter.png`,
+`events-export.png`. Drop them into `docs/images/` and they'll render here.
 
 ## Features
 
@@ -14,8 +20,14 @@ DevObservatory is a lightweight “developer observability” side project: crea
 - API keys per project (per-key last-used tracking)
 - Event ingestion (`X-API-Key`, async via RabbitMQ → worker → Postgres)
 - Live event stream (Server-Sent Events, Postgres NOTIFY trigger)
+- Event search and filter (event_name, user_id, time range) with cursor pagination
+- CSV / NDJSON export of events with Excel-formula injection guards
 - Per-project analytics dashboard: time-series chart, top-events bar chart
 - Conversion funnels (ordered event names → step-by-step conversion)
+- Funnel snapshots + 14-day trend (per-step conversion rate over time)
+- Cohort retention heatmap (pick a starting event, see how many users returned on day+0..N)
+- Outbound webhooks with HMAC-SHA256 signing (per-webhook secret, event-name filter, SSRF guard)
+- Stack-trace pretty-printing (`release` + `environment` on ingest, Sentry/Python/JS frame parsing)
 - One-click demo data seed (~3,000 events across 30 days)
 - Tokenized public share links (read-only dashboards, 30-day TTL)
 - SDK snippet generator (cURL / Node / Python / Go)
@@ -23,6 +35,8 @@ DevObservatory is a lightweight “developer observability” side project: crea
 - Invite flow with expiry + revocation
 - Rate limiting (SlowAPI) on auth endpoints
 - Security headers (HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy)
+- Marketing landing page (hero, feature grid, "how it works")
+- Mobile-responsive nav
 
 ## Tech Stack
 
@@ -32,7 +46,7 @@ DevObservatory is a lightweight “developer observability” side project: crea
 - UI: shadcn/ui-style Radix primitives (Dialog, Dropdown, Select, Tooltip)
 - Queue/Worker: RabbitMQ + aio-pika worker
 - Infra: Docker Compose (Postgres, Redis, RabbitMQ, MinIO)
-- Tests: pytest (16 tests covering security + funnels + snippets)
+- Tests: pytest (65 tests covering security, funnels, retention, search, webhooks, stack traces, snippets, exports, secrets)
 
 ## Architecture
 
@@ -151,6 +165,26 @@ Events:
 
 - `POST /events` (requires `X-API-Key`)
 - `GET /projects/{project_id}/events` (requires Bearer access token)
+- `GET /projects/{project_id}/events/search` (cursor-paginated, supports `event_name`, `user_id`, `from`, `to` filters)
+- `GET /projects/{project_id}/events/stream` (Server-Sent Events)
+- `GET /projects/{project_id}/events/export?format=csv|json` (filtered export, max 10,000 rows)
+
+Funnels:
+
+- `GET/POST /projects/{project_id}/funnels`
+- `DELETE /projects/{project_id}/funnels/{funnel_id}`
+- `GET /projects/{project_id}/funnels/{funnel_id}/result` (current conversion)
+- `POST /projects/{project_id}/funnels/{funnel_id}/snapshot` (snapshot today's funnel)
+- `GET /projects/{project_id}/funnels/{funnel_id}/trend?days=14`
+
+Retention:
+
+- `GET /projects/{project_id}/retention?event_name=...&days=14&max_window=14`
+
+Webhooks (outbound):
+
+- `GET/POST /projects/{project_id}/webhooks`
+- `DELETE /projects/{project_id}/webhooks/{webhook_id}`
 
 Frontend BFF:
 
