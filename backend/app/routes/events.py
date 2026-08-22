@@ -171,13 +171,23 @@ _EXPORT_COLUMNS = [
     "properties",
 ]
 
+# Characters that, when they appear as the first character of a CSV cell,
+# cause Excel/LibreOffice/Numbers to interpret the cell as a formula
+# (=, +, -, @) or control sequence (TAB, CR). Prefix with a single quote
+# to force text rendering.
+_FORMULA_LEADERS = ("=", "+", "-", "@", "\t", "\r")
+
 
 def _csv_escape(value) -> str:
-    """RFC 4180 CSV field escaping: wrap in quotes if needed and double internal quotes."""
+    """RFC 4180 CSV field escaping: wrap in quotes if needed, double internal
+    quotes, and prefix formula-leader characters with a single quote so
+    spreadsheet apps don't treat the cell as an expression."""
     if value is None:
         return ""
     s = str(value)
-    if any(ch in s for ch in [",", "\"", "\n", "\r"]):
+    if s.startswith(_FORMULA_LEADERS):
+        s = "'" + s
+    if any(ch in s for ch in [",", '"', "\n", "\r"]):
         return '"' + s.replace('"', '""') + '"'
     return s
 

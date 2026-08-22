@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -14,6 +14,12 @@ from app.schemas import RetentionCell, RetentionResponse
 
 
 router = APIRouter(prefix="/retention", tags=["retention"])
+
+# Cap rows read to keep the Python-side aggregation bounded. A full SQL
+# rewrite (group-by min(received_at), then count active days) would remove
+# this cap; for a portfolio piece 200k events is plenty for any demo and
+# most production data over a 14-day cohort window.
+RETENTION_EVENT_CAP = 200_000
 
 
 @router.get("/projects/{project_id}/retention", response_model=RetentionResponse)
@@ -31,6 +37,20 @@ def project_retention(
     """
     days = min(days, 90)
     max_window = min(max_window, 30)
+
+    count = db.query(Event).filter(
+        Event.project_id == project_id,
+        Event.user_id.is_not(None),
+    ).count()
+    if count > RETENTION_EVENT_CAP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Project has {count} events; retention query is capped at "
+                f"{RETENTION_EVENT_CAP} events. Reduce the cohort span or contact "
+                "an admin to raise the limit."
+            ),
+        )
 
     events = db.query(Event).filter(
         Event.project_id == project_id,

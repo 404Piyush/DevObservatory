@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models import OrgRole
 
@@ -175,6 +175,23 @@ class WebhookCreate(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
     event_filter: str | None = Field(default=None, max_length=200)
     active: bool = True
+
+    @field_validator("url")
+    @classmethod
+    def _url_must_be_http(cls, v: str) -> str:
+        """Enforce http(s) scheme and reject obvious SSRF targets.
+
+        The route layer does an additional private-IP check; this catches
+        the obvious shape mistakes (file://, javascript:, no scheme).
+        """
+        from urllib.parse import urlparse
+
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("url must start with http:// or https://")
+        if not parsed.hostname:
+            raise ValueError("url must include a hostname")
+        return v
 
 
 class WebhookCreated(WebhookCreate):

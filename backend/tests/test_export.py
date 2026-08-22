@@ -9,6 +9,8 @@ def _csv_escape(value):
     if value is None:
         return ""
     s = str(value)
+    if s.startswith(("=", "+", "-", "@", "\t", "\r")):
+        s = "'" + s
     if any(ch in s for ch in [",", '"', "\n", "\r"]):
         return '"' + s.replace('"', '""') + '"'
     return s
@@ -53,3 +55,17 @@ def test_row_with_comma_in_field_quotes_field() -> None:
     # The field with comma is quoted; the JSON-string version escapes
     # the internal double quotes.
     assert out == '1,"{""plan"":""pro,team""}"\n'
+
+
+def test_escape_prefixes_formula_leader() -> None:
+    # Cells starting with =, +, -, @ should get a leading single quote
+    # so Excel doesn't interpret them as formulas.
+    assert _csv_escape("=HYPERLINK(\"evil\")") == "\"'=HYPERLINK(\"\"evil\"\")\""
+    assert _csv_escape("+cmd|/c calc") == "'+cmd|/c calc"
+    assert _csv_escape("-2+3") == "'-2+3"
+    assert _csv_escape("@SUM(A1)") == "'@SUM(A1)"
+
+
+def test_escape_does_not_prefix_safe_text() -> None:
+    assert _csv_escape("hello") == "hello"
+    assert _csv_escape("text with = sign inside") == "text with = sign inside"

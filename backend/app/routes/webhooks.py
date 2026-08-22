@@ -1,7 +1,10 @@
 import secrets
+import socket
 import uuid
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +15,40 @@ from app.schemas import WebhookCreate, WebhookCreated, WebhookOut
 
 
 router = APIRouter(tags=["webhooks"])
+
+
+def _ip_is_public(host: str) -> bool:
+    """Best-effort: reject SSRF targets (loopback, link-local, private)."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    for family, _, _, _, sockaddr in infos:
+        ip = sockaddr[0]
+        if family == socket.AF_INET:
+            octets = ip.split(".")
+            if len(octets) != 4:
+                return False
+            a, b = int(octets[0]), int(octets[1])
+            if a == 10:
+                return False
+            if a == 127:
+                return False
+            if a == 0:
+                return False
+            if a == 169 and b == 254:  # link-local incl. AWS metadata
+                return False
+            if a == 172 and 16 <= b <= 31:
+                return False
+            if a == 192 and b == 168:
+                return False
+            if a == 100 and 64 <= b <= 127:  # carrier-grade NAT
+                return False
+        elif family == socket.AF_INET6:
+            # Reject loopback and link-local IPv6; allow public.
+            if ip == "::1" or ip.startswith("fe80:") or ip.startswith("fc") or ip.startswith("fd"):
+                return False
+    return True
 
 
 def _serialize(row: Webhook) -> WebhookOut:
@@ -55,6 +92,15 @@ def create_webhook(
     project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    # SSRF guard: resolve the URL's host and reject any IP in a private/
+    # loopback/link-local range. Pydantic already validated the scheme.
+    parsed = urlparse(payload.url)
+    if not _ip_is_public(parsed.hostname or ""):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook URL must resolve to a public IP address.",
+        )
 
     secret = f"whsec_{secrets.token_urlsafe(24)}"
     row = Webhook(
