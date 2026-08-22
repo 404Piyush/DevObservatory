@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities -- apostrophes and quotes in user-facing copy are intentional */
 "use client";
 
 import { useState } from "react";
@@ -65,7 +66,6 @@ function Node({
         <Row
           label={label}
           path={path}
-          type={isEmpty ? "object" : "object"}
           summary={isEmpty ? "{}" : `{${entries.length}}`}
           open={open}
           onToggle={() => setOpen((v) => !v)}
@@ -97,7 +97,6 @@ function Node({
         <Row
           label={label}
           path={path}
-          type="array"
           summary={isEmpty ? "[]" : `[${arr.length}]`}
           open={open}
           onToggle={() => setOpen((v) => !v)}
@@ -129,7 +128,6 @@ function Node({
 function Row({
   label,
   path,
-  type,
   summary,
   open,
   onToggle,
@@ -137,7 +135,6 @@ function Row({
 }: {
   label: string;
   path: string;
-  type: "object" | "array";
   summary: string;
   open: boolean;
   onToggle: () => void;

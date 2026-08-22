@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities -- apostrophes and quotes in user-facing copy are intentional */
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";

@@ -32,11 +32,13 @@ import {
 } from "@/lib/queries";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useSelectorStore } from "@/components/app/selector-store";
+
 import { Activity } from "lucide-react";
 
 import { JsonViewer } from "@/components/app/json-viewer";
 import { EmptyState } from "@/components/app/empty-state";
 import { StackTrace } from "@/components/app/stack-trace";
+import { useAutoSelect } from "@/components/app/use-auto-select";
 
 const TIME_PRESETS: { value: string; label: string; hours: number }[] = [
   { value: "all", label: "All time", hours: 0 },
@@ -76,17 +78,17 @@ export default function EventsPage() {
 
   const search = useEventSearch(projectId, { ...appliedFilters, cursor: cursor ?? undefined });
 
-  useEffect(() => {
-    if (!orgId && orgs.data && orgs.data.length > 0) setOrg(orgs.data[0].id);
-  }, [orgId, orgs.data, setOrg]);
-  useEffect(() => {
-    if (projects.data && projects.data.length > 0) {
-      const exists = projects.data.some((p) => p.id === projectId);
-      if (!exists) setProject(projects.data[0].id);
-    } else if (projects.data && projects.data.length === 0) {
-      setProject(null);
-    }
-  }, [projects.data, projectId, setProject]);
+  // Auto-select first org/project when data arrives, but don't clobber
+  // a user-picked value on every refetch.
+  useAutoSelect(orgs.data, !orgId && !!orgs.data && orgs.data.length > 0, (orgs) => {
+    setOrg(orgs[0]!.id);
+  });
+  useAutoSelect(projects.data, !projectId && !!projects.data && projects.data.length > 0, (projects) => {
+    setProject(projects[0]!.id);
+  });
+  useAutoSelect(projects.data, projects.data?.length === 0, () => {
+    setProject(null);
+  });
 
   useEffect(() => {
     if (search.error) {
@@ -95,13 +97,12 @@ export default function EventsPage() {
     }
   }, [search.error]);
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setCursor(null);
-    setExtraPages([]);
-  }, [appliedFilters, projectId]);
+  // Reset pagination state lives in applyFilters() and clearFilters() so
+  // we don't have to set state from an effect.
 
   function applyFilters() {
+    setCursor(null);
+    setExtraPages([]);
     const preset = TIME_PRESETS.find((p) => p.value === timePreset);
     const next: EventFilters = {
       event_name: eventName.trim() || undefined,
@@ -116,6 +117,8 @@ export default function EventsPage() {
     setEventName("");
     setUserId("");
     setTimePreset("all");
+    setCursor(null);
+    setExtraPages([]);
     setAppliedFilters({ limit: 50 });
   }
 

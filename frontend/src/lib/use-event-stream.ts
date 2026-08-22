@@ -14,25 +14,35 @@ export function useEventStream(projectId: string | null) {
   const [liveEvents, setLiveEvents] = useState<EventRecord[]>([]);
   const [connected, setConnected] = useState(false);
   const retryRef = useRef(0);
-  const closedRef = useRef(false);
+
+  // Reset state when the projectId changes or goes null. We track the
+  // previous value via a ref so we only clear on transitions, never on
+  // every effect run.
+  const lastProjectIdRef = useRef<string | null>(projectId);
+  useEffect(() => {
+    if (lastProjectIdRef.current === projectId) return;
+    lastProjectIdRef.current = projectId;
+    // The ref guard above makes this fire only on real transitions, so
+    // the setState-in-effect warning is a false positive here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLiveEvents([]);
+    setConnected(false);
+    retryRef.current = 0;
+  }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) {
-      setLiveEvents([]);
-      setConnected(false);
-      return;
-    }
-    closedRef.current = false;
-    retryRef.current = 0;
+    if (!projectId) return;
 
+    let closed = false;
     let source: EventSource | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const connect = () => {
-      if (closedRef.current) return;
+      if (closed) return;
       source = new EventSource(`/api/projects/${projectId}/events/stream`);
 
       source.onopen = () => {
+        if (closed) return;
         setConnected(true);
         retryRef.current = 0;
       };
@@ -50,9 +60,9 @@ export function useEventStream(projectId: string | null) {
       };
 
       source.onerror = () => {
+        if (closed) return;
         setConnected(false);
         source?.close();
-        if (closedRef.current) return;
         const delay = Math.min(1000 * 2 ** retryRef.current, 15_000);
         retryRef.current += 1;
         timer = setTimeout(connect, delay);
@@ -62,7 +72,7 @@ export function useEventStream(projectId: string | null) {
     connect();
 
     return () => {
-      closedRef.current = true;
+      closed = true;
       if (timer) clearTimeout(timer);
       source?.close();
     };

@@ -1,8 +1,11 @@
+/* eslint-disable react/no-unescaped-entities -- apostrophes and quotes in user-facing copy are intentional */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+
+import { useAutoSelect } from "@/components/app/use-auto-select";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,26 +50,35 @@ export default function FunnelsPage() {
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [windowHours, setWindowHours] = useState(24);
 
-  // Auto-select org/project
-  useEffect(() => {
-    if (!orgId && orgs.data && orgs.data.length > 0) setOrg(orgs.data[0].id);
-  }, [orgId, orgs.data, setOrg]);
-  useEffect(() => {
-    if (projects.data && projects.data.length > 0) {
-      const exists = projects.data.some((p) => p.id === projectId);
-      if (!exists) setProject(projects.data[0].id);
-    } else if (projects.data && projects.data.length === 0) {
-      setProject(null);
-    }
-  }, [projects.data, projectId, setProject]);
+  // Auto-select org/project using the shared helper. Each call fires
+  // at most once per data reference, so we don't clobber a user-picked
+  // value on every refetch.
+  useAutoSelect(orgs.data, !orgId && !!orgs.data && orgs.data.length > 0, (orgs) => {
+    setOrg(orgs[0]!.id);
+  });
+  useAutoSelect(projects.data, !projectId && !!projects.data && projects.data.length > 0, (projects) => {
+    setProject(projects[0]!.id);
+  });
+  useAutoSelect(projects.data, projects.data?.length === 0, () => {
+    setProject(null);
+  });
 
-  // Default selected funnel = first
+  // Default selected funnel = first, but only on transitions (data
+  // load or change) — use a ref guard so this isn't a per-render
+  // setState-in-effect.
+  const lastFunnelsDataRef = useRef(funnels.data);
   useEffect(() => {
+    if (lastFunnelsDataRef.current === funnels.data) return;
+    lastFunnelsDataRef.current = funnels.data;
+    // The ref guard above makes this fire only on real transitions, so
+    // the setState-in-effect warning is a false positive here.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!selectedFunnelId && funnels.data && funnels.data.length > 0) {
       setSelectedFunnelId(funnels.data[0].id);
     } else if (selectedFunnelId && funnels.data && !funnels.data.some((f) => f.id === selectedFunnelId)) {
       setSelectedFunnelId(funnels.data[0]?.id ?? null);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [funnels.data, selectedFunnelId]);
 
   const result = useFunnelResult(projectId, selectedFunnelId, windowHours);

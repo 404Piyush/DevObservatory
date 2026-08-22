@@ -24,6 +24,7 @@ type Props = {
 /** Pretty-print a stack trace as a list of frames. */
 export function StackTrace({ stack, className }: Props) {
   const frames = useMemo(() => parseStack(stack), [stack]);
+  const [showAll, setShowAll] = useState(false);
 
   if (frames === null) {
     return (
@@ -33,7 +34,6 @@ export function StackTrace({ stack, className }: Props) {
     );
   }
 
-  const [showAll, setShowAll] = useState(false);
   const visible = showAll ? frames : frames.slice(0, 10);
 
   return (

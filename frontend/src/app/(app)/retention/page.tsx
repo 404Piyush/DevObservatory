@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { useAutoSelect } from "@/components/app/use-auto-select";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,7 +31,6 @@ function heatColor(rate: number): string {
 export default function RetentionPage() {
   const orgId = useSelectorStore((s) => s.orgId);
   const projectId = useSelectorStore((s) => s.projectId);
-  const setOrg = useSelectorStore((s) => s.setOrg);
   const setProject = useSelectorStore((s) => s.setProject);
 
   const projects = useProjects(orgId);
@@ -39,12 +40,11 @@ export default function RetentionPage() {
 
   const retention = useRetention(projectId, eventName, days, maxWindow);
 
-  useEffect(() => {
-    if (projects.data && projects.data.length > 0) {
-      const exists = projects.data.some((p) => p.id === projectId);
-      if (!exists) setProject(projects.data[0].id);
-    }
-  }, [projects.data, projectId, setProject]);
+  // Auto-select first project when data arrives, but don't clobber a
+  // user-picked value on every refetch.
+  useAutoSelect(projects.data, !projectId && !!projects.data && projects.data.length > 0, (projects) => {
+    setProject(projects[0]!.id);
+  });
 
   useEffect(() => {
     if (retention.error) {

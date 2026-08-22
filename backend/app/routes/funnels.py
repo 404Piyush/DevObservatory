@@ -98,34 +98,8 @@ def funnel_result(
 
     window_hours = max(1, min(window_hours, 24 * 30))
     since = datetime.now(UTC) - timedelta(hours=window_hours)
-    steps_in: list[str] = list(funnel.steps or [])
-    if len(steps_in) < 2:
-        return FunnelResult(funnel_id=funnel.id, window_hours=window_hours, steps=[])
-
-    results: list[FunnelStepResult] = []
-    previous_users: set[str] | None = None
-    for step in steps_in:
-        users = set(
-            db.scalars(
-                select(Event.user_id).where(
-                    Event.project_id == project_id,
-                    Event.event_name == step,
-                    Event.received_at >= since,
-                    Event.user_id.is_not(None),
-                )
-            ).all()
-        )
-        if previous_users is not None:
-            intersected = users & previous_users
-            reached = len(intersected)
-            conv = (reached / len(previous_users)) if previous_users else 0.0
-        else:
-            reached = len(users)
-            conv = 1.0
-        results.append(FunnelStepResult(event_name=step, reached=reached, conversion_rate=round(conv, 4)))
-        previous_users = users
-
-    return FunnelResult(funnel_id=funnel.id, window_hours=window_hours, steps=results)
+    steps = _compute_funnel_rows(db, funnel, since)
+    return FunnelResult(funnel_id=funnel.id, window_hours=window_hours, steps=steps)
 
 
 

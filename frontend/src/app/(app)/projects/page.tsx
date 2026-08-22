@@ -1,7 +1,8 @@
+/* eslint-disable react/no-unescaped-entities -- apostrophes and quotes in user-facing copy are intentional */
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Share2, Trash2, Webhook } from "lucide-react";
+import { Copy, Eye, EyeOff, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
