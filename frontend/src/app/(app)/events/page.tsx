@@ -34,6 +34,7 @@ import { Activity } from "lucide-react";
 
 import { JsonViewer } from "@/components/app/json-viewer";
 import { EmptyState } from "@/components/app/empty-state";
+import { StackTrace } from "@/components/app/stack-trace";
 
 const TIME_PRESETS: { value: string; label: string; hours: number }[] = [
   { value: "all", label: "All time", hours: 0 },
@@ -347,15 +348,39 @@ export default function EventsPage() {
                     {e.user_id ? (
                       <div className="text-xs text-muted-foreground">user_id: {e.user_id}</div>
                     ) : null}
-                    {e.properties && Object.keys(e.properties).length > 0 ? (
-                                          <div className="mt-1 overflow-x-auto rounded bg-muted p-2">
-                                            <JsonViewer
-                                              data={e.properties as Record<string, unknown>}
-                                              rootLabel="$.properties"
-                                              initialExpandedDepth={3}
-                                            />
-                                          </div>
-                                        ) : null}
+                    {(e.release || e.environment) ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                        {e.release ? (
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
+                            {e.release}
+                          </span>
+                        ) : null}
+                        {e.environment ? (
+                          <span className="rounded bg-indigo-500/10 px-1.5 py-0.5 text-indigo-700 dark:text-indigo-300">
+                            {e.environment}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {e.properties && Array.isArray(e.properties.stack) ? (
+                      <div className="mt-2">
+                        <div className="mb-1 text-xs font-medium text-muted-foreground">
+                          Stack trace
+                        </div>
+                        <StackTrace stack={e.properties.stack} />
+                      </div>
+                    ) : null}
+                    {e.properties &&
+                    !Array.isArray(e.properties.stack) &&
+                    Object.keys(e.properties).length > 0 ? (
+                      <div className="mt-1 overflow-x-auto rounded bg-muted p-2">
+                        <JsonViewer
+                          data={e.properties as Record<string, unknown>}
+                          rootLabel="$.properties"
+                          initialExpandedDepth={3}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

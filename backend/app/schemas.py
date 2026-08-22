@@ -108,6 +108,8 @@ class EventIn(BaseModel):
     user_id: str | None = Field(default=None, max_length=200)
     timestamp: datetime
     properties: dict = Field(default_factory=dict)
+    release: str | None = Field(default=None, max_length=200)
+    environment: str | None = Field(default=None, max_length=64)
 
 
 class EventOut(BaseModel):
@@ -118,6 +120,8 @@ class EventOut(BaseModel):
     timestamp: datetime
     properties: dict
     received_at: datetime
+    release: str | None
+    environment: str | None
 
 
 class EventSearchResult(BaseModel):

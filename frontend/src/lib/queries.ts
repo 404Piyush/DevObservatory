@@ -21,6 +21,8 @@ export type EventRecord = {
   timestamp: string;
   properties: Record<string, unknown>;
   received_at: string;
+  release: string | null;
+  environment: string | null;
 };
 export type Metrics = {
   total_events: number;

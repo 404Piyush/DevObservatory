@@ -56,6 +56,8 @@ class IngestedEvent(BaseModel):
     user_id: str | None = Field(default=None, max_length=200)
     timestamp: datetime
     properties: dict = Field(default_factory=dict)
+    release: str | None = Field(default=None, max_length=200)
+    environment: str | None = Field(default=None, max_length=64)
 
 
 metadata = MetaData()
@@ -68,6 +70,8 @@ events_table = Table(
     Column("user_id", String(200), nullable=True),
     Column("timestamp", DateTime(timezone=True), nullable=False),
     Column("properties", JSONB, nullable=False),
+    Column("release", String(200), nullable=True),
+    Column("environment", String(64), nullable=True),
     Column("received_at", DateTime(timezone=True), nullable=False),
 )
 
@@ -117,6 +121,8 @@ async def handle_message(message: aio_pika.IncomingMessage) -> None:
                     user_id=event.user_id,
                     timestamp=event.timestamp,
                     properties=event.properties,
+                    release=event.release,
+                    environment=event.environment,
                     received_at=received_at,
                 )
             )

@@ -15,6 +15,8 @@ export function ingestSnippet(lang: SdkLanguage, apiKey: string, eventName = "us
     "event_name": "${eventName}",
     "user_id": "user_123",
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "release": "myapp@1.2.3",
+    "environment": "production",
     "properties": {"plan": "pro"}
   }'`;
 
@@ -30,6 +32,8 @@ await fetch("http://localhost:8000/api/events", {
     event_name: "${eventName}",
     user_id: "user_123",
     timestamp: new Date().toISOString(),
+    release: "myapp@1.2.3",
+    environment: "production",
     properties: { plan: "pro" },
   }),
 });`;
@@ -44,6 +48,8 @@ response = httpx.post(
         "event_name": "${eventName}",
         "user_id": "user_123",
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "release": "myapp@1.2.3",
+        "environment": "production",
         "properties": {"plan": "pro"},
     },
 )
@@ -62,10 +68,12 @@ import (
 
 func main() {
 \tpayload, _ := json.Marshal(map[string]any{
-\t\t"event_name": "${eventName}",
-\t\t"user_id":    "user_123",
-\t\t"timestamp":  time.Now().UTC().Format(time.RFC3339),
-\t\t"properties": map[string]any{"plan": "pro"},
+\t\t"event_name":  "${eventName}",
+\t\t"user_id":     "user_123",
+\t\t"timestamp":   time.Now().UTC().Format(time.RFC3339),
+\t\t"release":     "myapp@1.2.3",
+\t\t"environment": "production",
+\t\t"properties":  map[string]any{"plan": "pro"},
 \t})
 \treq, _ := http.NewRequest("POST", "http://localhost:8000/api/events", bytes.NewReader(payload))
 \treq.Header.Set("X-API-Key", "${apiKey}")

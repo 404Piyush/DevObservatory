@@ -38,6 +38,8 @@ async def ingest_event(
             "user_id": payload.user_id,
             "timestamp": payload.timestamp,
             "properties": payload.properties,
+            "release": payload.release,
+            "environment": payload.environment,
         }
     )
     return {"status": "queued"}

@@ -135,6 +135,8 @@ class Event(Base):
     user_id: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     properties: Mapped[dict] = mapped_column(JSONB, default=dict)
+    release: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    environment: Mapped[str | None] = mapped_column(String(64), nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
     project: Mapped[Project] = relationship(back_populates="events")
