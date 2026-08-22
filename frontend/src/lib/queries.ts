@@ -35,6 +35,20 @@ export type Analytics = { timeseries: TimeBucket[]; top_events: TopEvent[] };
 
 export type ShareToken = { token: string; expires_at: string };
 
+export type Webhook = {
+  id: string;
+  project_id: string;
+  name: string;
+  url: string;
+  event_filter: string | null;
+  active: boolean;
+  last_triggered_at: string | null;
+  last_status_code: number | null;
+  last_error: string | null;
+  created_at: string;
+};
+export type WebhookCreated = Webhook & { secret: string };
+
 export type Funnel = {
   id: string;
   project_id: string;
@@ -236,6 +250,32 @@ export function useSeedDemo() {
     onSuccess: () => {
       qc.invalidateQueries();
     },
+  });
+}
+
+export function useWebhooks(projectId: string | null) {
+  return useQuery({
+    queryKey: ["projects", projectId, "webhooks"] as const,
+    queryFn: () => api.get<Webhook[]>(`/api/projects/${projectId}/webhooks`),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateWebhook(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; url: string; event_filter?: string; active?: boolean }) =>
+      api.post<WebhookCreated>(`/api/projects/${projectId}/webhooks`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "webhooks"] }),
+  });
+}
+
+export function useDeleteWebhook(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (webhookId: string) =>
+      api.delete<void>(`/api/projects/${projectId}/webhooks/${webhookId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId, "webhooks"] }),
   });
 }
 

@@ -166,6 +166,39 @@ class FunnelStepResult(BaseModel):
     conversion_rate: float  # 0..1, ratio of users that hit this step vs the previous
 
 
+class WebhookCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    url: str = Field(min_length=8, max_length=2048)
+    event_filter: str | None = Field(default=None, max_length=200)
+    active: bool = True
+
+
+class WebhookCreated(WebhookCreate):
+    """Returned once after creation; includes the secret so the user can
+    configure the receiver to verify HMAC signatures."""
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    secret: str
+    last_triggered_at: datetime | None
+    last_status_code: int | None
+    last_error: str | None
+    created_at: datetime
+
+
+class WebhookOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    url: str
+    event_filter: str | None
+    active: bool
+    last_triggered_at: datetime | None
+    last_status_code: int | None
+    last_error: str | None
+    created_at: datetime
+
+
 class FunnelResult(BaseModel):
     funnel_id: uuid.UUID
     window_hours: int

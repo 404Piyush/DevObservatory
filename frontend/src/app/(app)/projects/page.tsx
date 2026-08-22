@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Share2 } from "lucide-react";
+import { Copy, Eye, EyeOff, Share2, Trash2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,15 @@ import {
   useCreateOrg,
   useCreateProject,
   useCreateShareToken,
+  useCreateWebhook,
+  useDeleteWebhook,
+  useWebhooks,
   useOrgs,
   useProjects,
   useRevokeApiKey,
 } from "@/lib/queries";
 import { useSelectorStore } from "@/components/app/selector-store";
-import type { ApiKeyCreated } from "@/lib/queries";
+import type { ApiKeyCreated, WebhookCreated } from "@/lib/queries";
 
 export default function ProjectsPage() {
   const orgId = useSelectorStore((s) => s.orgId);
@@ -47,6 +50,9 @@ export default function ProjectsPage() {
     const createApiKey = useCreateApiKey(projectId);
     const revokeApiKey = useRevokeApiKey(projectId);
     const createShareToken = useCreateShareToken(projectId);
+  const webhooks = useWebhooks(projectId);
+  const createWebhook = useCreateWebhook(projectId);
+  const deleteWebhook = useDeleteWebhook(projectId);
 
   const [orgName, setOrgName] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -56,6 +62,10 @@ export default function ProjectsPage() {
     const [revealedKey, setRevealedKey] = useState(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [snippetLang, setSnippetLang] = useState<SdkLanguage>("curl");
+  const [webhookName, setWebhookName] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookFilter, setWebhookFilter] = useState("");
+  const [createdWebhook, setCreatedWebhook] = useState<WebhookCreated | null>(null);
   const [snippetEventName, setSnippetEventName] = useState("user_signup");
 
   // Auto-select first org/project if missing
@@ -279,6 +289,167 @@ export default function ProjectsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhooks</CardTitle>
+          <CardDescription>
+            POST every matching event to a URL with an HMAC-SHA256 signature in
+            <code className="font-mono text-xs">X-DevObservatory-Signature</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid grow gap-1">
+              <Label htmlFor="webhook-name">Name</Label>
+              <Input
+                id="webhook-name"
+                value={webhookName}
+                onChange={(e) => setWebhookName(e.target.value)}
+                placeholder="e.g. slack-errors"
+                disabled={!projectId}
+              />
+            </div>
+            <div className="grid grow gap-1">
+              <Label htmlFor="webhook-url">URL</Label>
+              <Input
+                id="webhook-url"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                placeholder="https://example.com/webhook"
+                disabled={!projectId}
+              />
+            </div>
+            <div className="grid grow gap-1">
+              <Label htmlFor="webhook-filter">Event filter (optional)</Label>
+              <Input
+                id="webhook-filter"
+                value={webhookFilter}
+                onChange={(e) => setWebhookFilter(e.target.value)}
+                placeholder="event_name (exact match)"
+                disabled={!projectId}
+              />
+            </div>
+            <Button
+              onClick={async () => {
+                if (!webhookName.trim() || !webhookUrl.trim()) return;
+                try {
+                  const out = await createWebhook.mutateAsync({
+                    name: webhookName.trim(),
+                    url: webhookUrl.trim(),
+                    event_filter: webhookFilter.trim() || undefined,
+                  });
+                  setCreatedWebhook(out);
+                  setWebhookName("");
+                  setWebhookUrl("");
+                  setWebhookFilter("");
+                  toast.success("Webhook created — save the signing secret");
+                } catch (err) {
+                  handleApiError(err, "Could not create webhook");
+                }
+              }}
+              disabled={!projectId || !webhookName.trim() || !webhookUrl.trim() || createWebhook.isPending}
+            >
+              {createWebhook.isPending ? "Creating…" : "Create webhook"}
+            </Button>
+          </div>
+
+          {webhooks.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : !webhooks.data || webhooks.data.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No webhooks yet.</div>
+          ) : (
+            <ul className="grid gap-2">
+              {webhooks.data.map((w) => (
+                <li
+                  key={w.id}
+                  className="flex items-center justify-between rounded-md border p-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{w.name}</span>
+                      {!w.active ? (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs">paused</span>
+                      ) : null}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {w.url}
+                      {w.event_filter ? ` · filter: ${w.event_filter}` : ""}
+                    </div>
+                    {w.last_triggered_at ? (
+                      <div className="text-xs text-muted-foreground">
+                        last fired {new Date(w.last_triggered_at).toLocaleString()}
+                        {w.last_status_code
+                          ? ` · ${w.last_status_code}`
+                          : w.last_error
+                            ? ` · error: ${w.last_error.slice(0, 60)}`
+                            : ""}
+                      </div>
+                    ) : null}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      try {
+                        await deleteWebhook.mutateAsync(w.id);
+                        toast.success("Webhook deleted");
+                      } catch (err) {
+                        handleApiError(err, "Could not delete webhook");
+                      }
+                    }}
+                    disabled={deleteWebhook.isPending}
+                    aria-label="Delete webhook"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={!!createdWebhook}
+        onOpenChange={(open) => {
+          if (!open) setCreatedWebhook(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save your webhook signing secret</DialogTitle>
+            <DialogDescription>
+              The secret is shown once. Configure your receiver to verify the
+              <code className="font-mono text-xs"> X-DevObservatory-Signature </code>
+              header by computing HMAC-SHA256 of the request body with this secret.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label>Secret</Label>
+            <div className="flex items-center gap-2">
+              <code className="grow overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
+                {createdWebhook?.secret}
+              </code>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() =>
+                  createdWebhook && copyToClipboard(createdWebhook.secret, "Secret")
+                }
+                aria-label="Copy secret"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatedWebhook(null)}>
+              I've saved it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

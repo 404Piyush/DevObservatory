@@ -11,6 +11,7 @@ import aio_pika
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import BigInteger, Column, DateTime, MetaData, String, Table, create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import insert
 
@@ -72,6 +73,7 @@ events_table = Table(
 
 
 engine = create_engine(settings.postgres_dsn, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -106,6 +108,7 @@ async def handle_message(message: aio_pika.IncomingMessage) -> None:
     async with message.process(requeue=True):
         payload = json.loads(message.body.decode("utf-8"))
         event = IngestedEvent.model_validate(payload)
+        received_at = datetime.now(UTC)
         with engine.begin() as conn:
             conn.execute(
                 insert(events_table).values(
@@ -114,9 +117,31 @@ async def handle_message(message: aio_pika.IncomingMessage) -> None:
                     user_id=event.user_id,
                     timestamp=event.timestamp,
                     properties=event.properties,
-                    received_at=datetime.now(UTC),
+                    received_at=received_at,
                 )
             )
+
+        # Fire-and-forget outbound webhooks. We reuse the sync engine to
+        # query active webhooks; the async dispatcher handles the POST.
+        try:
+            import asyncio as _asyncio
+
+            from app.webhooks import dispatch_for_event_async  # noqa: PLC0415
+
+            _asyncio.create_task(
+                dispatch_for_event_async(
+                    SessionLocal,
+                    str(event.project_id),
+                    event.event_name,
+                    event.user_id,
+                    event.properties,
+                    received_at,
+                )
+            )
+        except Exception as exc:  # pragma: no cover — never block ingest
+            import logging
+
+            logging.getLogger(__name__).warning("webhook dispatch enqueue failed: %s", exc)
 
 
 async def main() -> None:

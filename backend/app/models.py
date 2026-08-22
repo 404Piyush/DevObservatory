@@ -90,6 +90,7 @@ class Project(Base):
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     events: Mapped[list["Event"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     funnels: Mapped[list["Funnel"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    webhooks: Mapped[list["Webhook"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint("organization_id", "name", name="uq_projects_org_name"),)
 
@@ -167,3 +168,26 @@ class ShareToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Webhook(Base):
+    """Outbound webhook: POST an event payload to a URL with HMAC signature."""
+
+    __tablename__ = "webhooks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str] = mapped_column(String(2048))
+    secret: Mapped[str] = mapped_column(String(64))
+    # event_name filter: if set, only events whose name matches this filter
+    # are dispatched. Stored as a plain event name (no regex for now — keep
+    # the surface simple).
+    event_filter: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status_code: Mapped[int | None] = mapped_column(nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text(), nullable=True)
+
+    project: Mapped[Project] = relationship(back_populates="webhooks")
