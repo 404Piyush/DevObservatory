@@ -4,15 +4,18 @@ DevObservatory is a lightweight “developer observability” side project: crea
 
 ## Screenshots
 
+### Marketing landing
+![Landing](docs/images/landing.png)
+
 ### App
 ![Login](docs/images/login.png)
 ![Dashboard](docs/images/dashboard.png)
 ![Events](docs/images/events.png)
-
-### New in recent releases
-The following screenshots are placeholders pending capture: `funnels.png`,
-`retention.png`, `webhooks.png`, `landing.png`, `events-filter.png`,
-`events-export.png`. Drop them into `docs/images/` and they'll render here.
+![Events with filter applied](docs/images/events-filter.png)
+![Projects](docs/images/projects.png)
+![Webhooks section](docs/images/webhooks.png)
+![Funnels with trend chart](docs/images/funnels.png)
+![Retention cohort heatmap](docs/images/retention.png)
 
 ## Features
 

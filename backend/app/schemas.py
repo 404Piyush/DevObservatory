@@ -113,6 +113,8 @@ class EventIn(BaseModel):
 
 
 class EventOut(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     project_id: uuid.UUID
     event_name: str

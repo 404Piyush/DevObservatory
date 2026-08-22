@@ -52,10 +52,13 @@ def list_events(
     db: Session = Depends(get_db),
     _membership: Membership = Depends(require_project_role(OrgRole.viewer)),
 ):
+    """Return the last 200 events for a project, newest first."""
     events = db.scalars(
         select(Event).where(Event.project_id == project_id).order_by(Event.received_at.desc()).limit(200)
     ).all()
-    return list(events)
+    # Explicit conversion so Pydantic v2 doesn't choke on SQLAlchemy ORM
+    # objects with the new release/environment columns.
+    return [EventOut.model_validate(e) for e in events]
 
 
 @router.get("/projects/{project_id}/events/stream")
