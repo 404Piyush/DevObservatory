@@ -159,6 +159,23 @@ class Funnel(Base):
     project: Mapped[Project] = relationship(back_populates="funnels")
 
 
+class FunnelSnapshot(Base):
+    """One row per funnel step per day. Upserted by /snapshot."""
+
+    __tablename__ = "funnel_snapshots"
+    __table_args__ = (
+        UniqueConstraint("funnel_id", "snapshot_date", "step_index", name="uq_funnel_snapshot_day_step"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    funnel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("funnels.id", ondelete="CASCADE"), index=True)
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    step_index: Mapped[int] = mapped_column()
+    event_name: Mapped[str] = mapped_column(String(200))
+    reached: Mapped[int] = mapped_column()
+    conversion_rate: Mapped[float] = mapped_column()
+
+
 class ShareToken(Base):
     """Tokenized read-only URL for a project's dashboard."""
 

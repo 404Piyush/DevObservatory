@@ -14,9 +14,11 @@ import {
   useCreateFunnel,
   useDeleteFunnel,
   useFunnelResult,
+  useFunnelTrend,
   useFunnels,
   useOrgs,
   useProjects,
+  useSnapshotFunnel,
 } from "@/lib/queries";
 import { useSelectorStore } from "@/components/app/selector-store";
 
@@ -68,6 +70,8 @@ export default function FunnelsPage() {
   }, [funnels.data, selectedFunnelId]);
 
   const result = useFunnelResult(projectId, selectedFunnelId, windowHours);
+  const trend = useFunnelTrend(projectId, selectedFunnelId, 14);
+  const snapshotFunnel = useSnapshotFunnel(projectId, selectedFunnelId);
 
   const steps = useMemo(
     () =>
@@ -299,6 +303,53 @@ export default function FunnelsPage() {
                   </li>
                 );
               })}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Trend (last 14 days)</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (!selectedFunnelId) return;
+              try {
+                await snapshotFunnel.mutateAsync();
+                toast.success("Snapshot recorded");
+              } catch (err) {
+                handleApiError(err, "Could not snapshot funnel");
+              }
+            }}
+            disabled={!selectedFunnelId || snapshotFunnel.isPending}
+          >
+            {snapshotFunnel.isPending ? "Snapshotting…" : "Snapshot now"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!selectedFunnelId ? (
+            <div className="text-sm text-muted-foreground">Select a funnel above.</div>
+          ) : trend.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : !trend.data ||
+            trend.data.points.every((p) => p.steps.length === 0) ? (
+            <div className="text-sm text-muted-foreground">
+              No snapshots yet — click "Snapshot now" to record today&apos;s conversion.
+            </div>
+          ) : (
+            <ol className="grid gap-1 text-xs">
+              {trend.data.points.map((p) => (
+                <li key={p.snapshot_date} className="flex gap-3">
+                  <span className="shrink-0 font-mono text-muted-foreground">{p.snapshot_date}</span>
+                  <span>
+                    {p.steps.length === 0
+                      ? "—"
+                      : p.steps.map((s) => `${s.event_name}=${s.reached}`).join(" → ")}
+                  </span>
+                </li>
+              ))}
             </ol>
           )}
         </CardContent>

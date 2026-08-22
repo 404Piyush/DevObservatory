@@ -69,6 +69,16 @@ export type FunnelResult = {
   steps: FunnelStepResult[];
 };
 
+export type FunnelTrendPoint = {
+  snapshot_date: string;
+  steps: FunnelStepResult[];
+};
+export type FunnelTrend = {
+  funnel_id: string;
+  days: number;
+  points: FunnelTrendPoint[];
+};
+
 export type EventFilters = {
   event_name?: string;
   user_id?: string;
@@ -97,6 +107,8 @@ export const queryKeys = {
   funnels: (projectId: string | null) => ["projects", projectId, "funnels"] as const,
   funnelResult: (projectId: string | null, funnelId: string | null, hours: number) =>
     ["projects", projectId, "funnels", funnelId, "result", hours] as const,
+  funnelTrend: (projectId: string | null, funnelId: string | null, days: number) =>
+    ["projects", projectId, "funnels", funnelId, "trend", days] as const,
   metrics: ["metrics", "overview"] as const,
 };
 
@@ -234,6 +246,35 @@ export function useFunnelResult(
     queryFn: () =>
       api.get<FunnelResult>(
         `/api/projects/${projectId}/funnels/${funnelId}/result?window_hours=${windowHours}`,
+      ),
+    enabled: !!projectId && !!funnelId,
+  });
+}
+
+export function useSnapshotFunnel(projectId: string | null, funnelId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<FunnelResult>(
+        `/api/projects/${projectId}/funnels/${funnelId}/snapshot`,
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.funnels(projectId) });
+    },
+  });
+}
+
+export function useFunnelTrend(
+  projectId: string | null,
+  funnelId: string | null,
+  days: number = 14,
+) {
+  return useQuery({
+    queryKey: queryKeys.funnelTrend(projectId, funnelId, days),
+    queryFn: () =>
+      api.get<FunnelTrend>(
+        `/api/projects/${projectId}/funnels/${funnelId}/trend?days=${days}`,
       ),
     enabled: !!projectId && !!funnelId,
   });

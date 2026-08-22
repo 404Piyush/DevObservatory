@@ -207,3 +207,14 @@ class FunnelResult(BaseModel):
     funnel_id: uuid.UUID
     window_hours: int
     steps: list[FunnelStepResult]
+
+
+class FunnelTrendPoint(BaseModel):
+    snapshot_date: str  # ISO date (YYYY-MM-DD)
+    steps: list[FunnelStepResult]
+
+
+class FunnelTrendResponse(BaseModel):
+    funnel_id: uuid.UUID
+    days: int
+    points: list[FunnelTrendPoint]
