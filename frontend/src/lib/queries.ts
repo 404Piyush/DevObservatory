@@ -79,6 +79,18 @@ export type FunnelTrend = {
   points: FunnelTrendPoint[];
 };
 
+export type RetentionCohort = {
+  cohort_day: string;
+  cohort_size: number;
+  retention: number[];
+};
+export type Retention = {
+  event_name: string;
+  days: number;
+  max_window: number;
+  cohorts: RetentionCohort[];
+};
+
 export type EventFilters = {
   event_name?: string;
   user_id?: string;
@@ -109,6 +121,8 @@ export const queryKeys = {
     ["projects", projectId, "funnels", funnelId, "result", hours] as const,
   funnelTrend: (projectId: string | null, funnelId: string | null, days: number) =>
     ["projects", projectId, "funnels", funnelId, "trend", days] as const,
+  retention: (projectId: string | null, eventName: string, days: number, maxWindow: number) =>
+    ["projects", projectId, "retention", eventName, days, maxWindow] as const,
   metrics: ["metrics", "overview"] as const,
 };
 
@@ -277,6 +291,24 @@ export function useFunnelTrend(
         `/api/projects/${projectId}/funnels/${funnelId}/trend?days=${days}`,
       ),
     enabled: !!projectId && !!funnelId,
+  });
+}
+
+export function useRetention(
+  projectId: string | null,
+  eventName: string,
+  days: number = 14,
+  maxWindow: number = 14,
+) {
+  return useQuery({
+    queryKey: queryKeys.retention(projectId, eventName, days, maxWindow),
+    queryFn: () =>
+      api.get<Retention>(
+        `/api/projects/${projectId}/retention?event_name=${encodeURIComponent(
+          eventName,
+        )}&days=${days}&max_window=${maxWindow}`,
+      ),
+    enabled: !!projectId,
   });
 }
 

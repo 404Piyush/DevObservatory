@@ -218,3 +218,18 @@ class FunnelTrendResponse(BaseModel):
     funnel_id: uuid.UUID
     days: int
     points: list[FunnelTrendPoint]
+
+
+class RetentionCell(BaseModel):
+    """A single cohort row's retention rates per offset (0..max_window)."""
+
+    cohort_day: str  # ISO date (YYYY-MM-DD)
+    cohort_size: int
+    retention: list[float]  # retention[k] = % of cohort active on day+k
+
+
+class RetentionResponse(BaseModel):
+    event_name: str
+    days: int  # number of cohorts returned
+    max_window: int  # number of retention offsets (e.g. 14)
+    cohorts: list[RetentionCell]

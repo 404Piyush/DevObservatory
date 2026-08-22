@@ -12,7 +12,7 @@ from starlette.responses import Response
 from app.core.config import settings
 from app.limiter import limiter
 from app.queue import RabbitPublisher
-from app.routes import auth, events, funnels, metrics, orgs, projects, public, webhooks
+from app.routes import auth, events, funnels, metrics, orgs, projects, public, retention, webhooks
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -61,6 +61,7 @@ app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(events.router, prefix=settings.api_prefix)
 app.include_router(metrics.router, prefix=settings.api_prefix)
 app.include_router(funnels.router, prefix=settings.api_prefix)
+app.include_router(retention.router, prefix=settings.api_prefix)
 app.include_router(public.router, prefix=settings.api_prefix)
 app.include_router(webhooks.router, prefix=settings.api_prefix)
 
