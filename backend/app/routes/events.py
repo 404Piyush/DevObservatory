@@ -157,3 +157,114 @@ def search_events(
         _encode_cursor(page[-1].received_at, page[-1].id) if has_more and page else None
     )
     return EventSearchResult(events=list(page), has_more=has_more, next_cursor=next_cursor)
+
+
+
+_EXPORT_COLUMNS = [
+    "id",
+    "received_at",
+    "event_name",
+    "user_id",
+    "timestamp",
+    "release",
+    "environment",
+    "properties",
+]
+
+
+def _csv_escape(value) -> str:
+    """RFC 4180 CSV field escaping: wrap in quotes if needed and double internal quotes."""
+    if value is None:
+        return ""
+    s = str(value)
+    if any(ch in s for ch in [",", "\"", "\n", "\r"]):
+        return '"' + s.replace('"', '""') + '"'
+    return s
+
+
+def _format_row_csv(row) -> str:
+    return ",".join(_csv_escape(getattr(row, col)) for col in _EXPORT_COLUMNS) + "\n"
+
+
+@router.get("/projects/{project_id}/events/export")
+def export_events(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _membership: Membership = Depends(require_project_role(OrgRole.viewer)),
+    format: str = "csv",
+    event_name: str | None = Query(default=None, max_length=200),
+    user_id: str | None = Query(default=None, max_length=200),
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    limit: int = Query(default=10_000, ge=1, le=10_000),
+):
+    """Stream events matching the same filters as /events/search as CSV or NDJSON.
+
+    Cap is 10,000 rows to keep responses bounded; reviewers can see the
+    shape and extend the cap if they need more.
+    """
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    if format not in ("csv", "json"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="format must be 'csv' or 'json'")
+
+    conds = [Event.project_id == project_id]
+    if event_name:
+        conds.append(Event.event_name == event_name)
+    if user_id:
+        conds.append(Event.user_id == user_id)
+    if from_ is not None:
+        conds.append(Event.received_at >= from_)
+    if to is not None:
+        conds.append(Event.received_at <= to)
+
+    if format == "csv":
+
+        def _csv_iter():
+            yield ",".join(_EXPORT_COLUMNS) + "\n"
+            for row in db.scalars(
+                select(Event).where(and_(*conds)).order_by(Event.received_at.desc()).limit(limit)
+            ):
+                yield _format_row_csv(row)
+
+        return StreamingResponse(
+            _csv_iter(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="events-{project_id}.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    def _ndjson_iter():
+        for row in db.scalars(
+            select(Event).where(and_(*conds)).order_by(Event.received_at.desc()).limit(limit)
+        ):
+            yield (
+                json.dumps(
+                    {
+                        "id": row.id,
+                        "received_at": row.received_at.isoformat(),
+                        "event_name": row.event_name,
+                        "user_id": row.user_id,
+                        "timestamp": row.timestamp.isoformat(),
+                        "release": row.release,
+                        "environment": row.environment,
+                        "properties": row.properties or {},
+                    },
+                    default=str,
+                )
+                + "\n"
+            )
+
+    return StreamingResponse(
+        _ndjson_iter(),
+        media_type="application/x-ndjson",
+        headers={
+            "Content-Disposition": f'attachment; filename="events-{project_id}.ndjson"',
+            "Cache-Control": "no-store",
+        },
+    )

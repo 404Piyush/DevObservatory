@@ -14,6 +14,8 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 
+import { Download } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -115,6 +117,16 @@ export default function EventsPage() {
     setUserId("");
     setTimePreset("all");
     setAppliedFilters({ limit: 50 });
+  }
+
+  function exportQuery(): string {
+    const params = new URLSearchParams();
+    if (appliedFilters.event_name) params.set("event_name", appliedFilters.event_name);
+    if (appliedFilters.user_id) params.set("user_id", appliedFilters.user_id);
+    if (appliedFilters.from) params.set("from", appliedFilters.from);
+    if (appliedFilters.to) params.set("to", appliedFilters.to);
+    const s = params.toString();
+    return s ? `&${s}` : "";
   }
 
   function loadMore() {
@@ -291,14 +303,40 @@ export default function EventsPage() {
               <span className="ml-2 text-xs text-muted-foreground">({allEvents.length})</span>
             ) : null}
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => search.refetch()}
-            disabled={!projectId || search.isFetching}
-          >
-            {search.isFetching ? "Refreshing…" : "Refresh"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => search.refetch()}
+              disabled={!projectId || search.isFetching}
+            >
+              {search.isFetching ? "Refreshing…" : "Refresh"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              disabled={!projectId}
+              title={projectId ? "Download events as CSV" : undefined}
+            >
+              <a href={`/api/projects/${projectId}/events/export?format=csv${exportQuery()}`}>
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              disabled={!projectId}
+              title={projectId ? "Download events as NDJSON" : undefined}
+            >
+              <a href={`/api/projects/${projectId}/events/export?format=json${exportQuery()}`}>
+                <Download className="mr-2 h-4 w-4" />
+                JSON
+              </a>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!projectId ? (
